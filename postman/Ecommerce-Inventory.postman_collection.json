@@ -1,0 +1,313 @@
+{
+  "info": {
+    "_postman_id": "ecommerce-inventory-assignment",
+    "name": "E-Commerce Inventory & Order Fulfillment",
+    "description": "Postman validation collection for the E-Commerce Inventory & Order Fulfillment Engine assignment.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080"
+    },
+    {
+      "key": "userId",
+      "value": "1"
+    },
+    {
+      "key": "productId",
+      "value": "1"
+    },
+    {
+      "key": "orderId",
+      "value": "1"
+    },
+    {
+      "key": "stockBefore",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Seed Data",
+      "item": [
+        {
+          "name": "Create User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman User\",\n  \"email\": \"postman@example.com\"\n}"
+            },
+            "url": "{{baseUrl}}/users"
+          }
+        },
+        {
+          "name": "Create Product",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman Test Phone\",\n  \"category\": \"Smartphone\",\n  \"price\": 50000,\n  \"stock\": 10\n}"
+            },
+            "url": "{{baseUrl}}/products"
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Dynamic Search Tests",
+      "item": [
+        {
+          "name": "All Products - Pagination",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/products/search?page=0&size=5"
+          }
+        },
+        {
+          "name": "Category Filter",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/products/search?category=Smartphone"
+          }
+        },
+        {
+          "name": "Minimum Price Filter",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/products/search?minPrice=50000"
+          }
+        },
+        {
+          "name": "Maximum Price Filter",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/products/search?maxPrice=50000"
+          }
+        },
+        {
+          "name": "Price Range Filter",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/products/search?minPrice=50000&maxPrice=75000"
+          }
+        },
+        {
+          "name": "In Stock Filter",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/products/search?inStock=true"
+          }
+        },
+        {
+          "name": "Multi-Parameter Filter",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/products/search?category=Smartphone&minPrice=50000&maxPrice=75000&inStock=true"
+          }
+        },
+        {
+          "name": "Out of Bounds Page",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/products/search?page=999&size=5"
+          }
+        },
+        {
+          "name": "Sort by Price Descending",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/products/search?sort=price,desc"
+          }
+        },
+        {
+          "name": "Multi-Field Sorting",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/products/search?sort=category,asc&sort=price,desc"
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Order Lifecycle Tests",
+      "item": [
+        {
+          "name": "Create Order - PENDING",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.id) pm.collectionVariables.set('orderId', json.id);",
+                  "if (json.items && json.items.length > 0 && json.items[0].product && json.items[0].product.id) pm.collectionVariables.set('productId', json.items[0].product.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": 1,\n  \"items\": [\n    {\n      \"productId\": 1,\n      \"quantity\": 1\n    }\n  ]\n}"
+            },
+            "url": "{{baseUrl}}/orders"
+          }
+        },
+        {
+          "name": "Get Order",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/orders/{{orderId}}"
+          }
+        },
+        {
+          "name": "PENDING to PAID",
+          "request": {
+            "method": "PATCH",
+            "url": "{{baseUrl}}/orders/{{orderId}}/status?status=PAID"
+          }
+        },
+        {
+          "name": "PAID to SHIPPED",
+          "request": {
+            "method": "PATCH",
+            "url": "{{baseUrl}}/orders/{{orderId}}/status?status=SHIPPED"
+          }
+        },
+        {
+          "name": "Illegal Transition - SHIPPED to CANCELLED",
+          "request": {
+            "method": "PATCH",
+            "url": "{{baseUrl}}/orders/{{orderId}}/status?status=CANCELLED"
+          }
+        },
+        {
+          "name": "Insufficient Stock",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": 1,\n  \"items\": [\n    {\n      \"productId\": 1,\n      \"quantity\": 999999\n    }\n  ]\n}"
+            },
+            "url": "{{baseUrl}}/orders"
+          }
+        },
+        {
+          "name": "Invalid Quantity - Zero",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": 1,\n  \"items\": [\n    {\n      \"productId\": 1,\n      \"quantity\": 0\n    }\n  ]\n}"
+            },
+            "url": "{{baseUrl}}/orders"
+          }
+        },
+        {
+          "name": "Invalid Quantity - Negative",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": 1,\n  \"items\": [\n    {\n      \"productId\": 1,\n      \"quantity\": -1\n    }\n  ]\n}"
+            },
+            "url": "{{baseUrl}}/orders"
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Cancellation & Stock Restoration",
+      "item": [
+        {
+          "name": "Create Cancellation Test Order",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.id) pm.collectionVariables.set('orderId', json.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": 1,\n  \"items\": [\n    {\n      \"productId\": 1,\n      \"quantity\": 1\n    }\n  ]\n}"
+            },
+            "url": "{{baseUrl}}/orders"
+          }
+        },
+        {
+          "name": "Get Product Before Cancellation",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/products/{{productId}}"
+          }
+        },
+        {
+          "name": "Cancel PENDING Order",
+          "request": {
+            "method": "PATCH",
+            "url": "{{baseUrl}}/orders/{{orderId}}/status?status=CANCELLED"
+          }
+        },
+        {
+          "name": "Get Product After Cancellation",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/products/{{productId}}"
+          }
+        }
+      ]
+    }
+  ]
+}
