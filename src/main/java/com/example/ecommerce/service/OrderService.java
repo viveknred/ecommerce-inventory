@@ -122,13 +122,15 @@ public class OrderService {
 
             order.setStatus(OrderStatus.SHIPPED);
 
-        } else if (currentStatus == OrderStatus.PENDING
+        } else if ((currentStatus == OrderStatus.PENDING
+                || currentStatus == OrderStatus.PAID)
                 && newStatus == OrderStatus.CANCELLED) {
 
             restoreStock(order);
             order.setStatus(OrderStatus.CANCELLED);
 
         } else {
+
             throw new InvalidStateTransitionException(
                     "Invalid status transition from "
                             + currentStatus

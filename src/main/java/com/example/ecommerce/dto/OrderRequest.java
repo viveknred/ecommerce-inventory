@@ -8,10 +8,10 @@ import jakarta.validation.constraints.NotNull;
 
 public class OrderRequest {
 
-    @NotNull
+    @NotNull(message = "User ID is required")
     private Long userId;
 
-    @NotEmpty
+    @NotEmpty(message = "Order must contain at least one item")
     @Valid
     private List<OrderItemRequest> items;
 

@@ -1,91 +1,138 @@
 package com.example.ecommerce.exception;
 
-import java.util.HashMap;
+import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.ConstraintViolationException;
+
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(ResourceNotFoundException.class)
-    public ResponseEntity<Map<String, String>> handleResourceNotFound(
-            ResourceNotFoundException ex) {
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public Map<String, Object> handleResourceNotFound(
+            ResourceNotFoundException ex,
+            HttpServletRequest request) {
 
-        Map<String, String> response = new HashMap<>();
-        response.put("error", ex.getMessage());
-
-        return ResponseEntity
-                .status(HttpStatus.NOT_FOUND)
-                .body(response);
+        return buildResponse(
+                HttpStatus.NOT_FOUND,
+                ex.getMessage(),
+                request.getRequestURI()
+        );
     }
 
     @ExceptionHandler(InsufficientStockException.class)
-    public ResponseEntity<Map<String, String>> handleInsufficientStock(
-            InsufficientStockException ex) {
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public Map<String, Object> handleInsufficientStock(
+            InsufficientStockException ex,
+            HttpServletRequest request) {
 
-        Map<String, String> response = new HashMap<>();
-        response.put("error", ex.getMessage());
-
-        return ResponseEntity
-                .status(HttpStatus.BAD_REQUEST)
-                .body(response);
+        return buildResponse(
+                HttpStatus.BAD_REQUEST,
+                ex.getMessage(),
+                request.getRequestURI()
+        );
     }
 
     @ExceptionHandler(InvalidStateTransitionException.class)
-    public ResponseEntity<Map<String, String>> handleInvalidStateTransition(
-            InvalidStateTransitionException ex) {
+    @ResponseStatus(HttpStatus.UNPROCESSABLE_ENTITY)
+    public Map<String, Object> handleInvalidStateTransition(
+            InvalidStateTransitionException ex,
+            HttpServletRequest request) {
 
-        Map<String, String> response = new HashMap<>();
-        response.put("error", ex.getMessage());
-
-        return ResponseEntity
-                .status(HttpStatus.BAD_REQUEST)
-                .body(response);
-    }
-
-    @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<Map<String, String>> handleValidation(
-            MethodArgumentNotValidException ex) {
-
-        Map<String, String> response = new HashMap<>();
-
-        ex.getBindingResult()
-                .getFieldErrors()
-                .forEach(error ->
-                        response.put(error.getField(), error.getDefaultMessage())
-                );
-
-        return ResponseEntity
-                .status(HttpStatus.BAD_REQUEST)
-                .body(response);
+        return buildResponse(
+                HttpStatus.UNPROCESSABLE_ENTITY,
+                ex.getMessage(),
+                request.getRequestURI()
+        );
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<Map<String, String>> handleIllegalArgument(
-            IllegalArgumentException ex) {
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public Map<String, Object> handleIllegalArgument(
+            IllegalArgumentException ex,
+            HttpServletRequest request) {
 
-        Map<String, String> response = new HashMap<>();
-        response.put("error", ex.getMessage());
+        return buildResponse(
+                HttpStatus.BAD_REQUEST,
+                ex.getMessage(),
+                request.getRequestURI()
+        );
+    }
 
-        return ResponseEntity
-                .status(HttpStatus.BAD_REQUEST)
-                .body(response);
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public Map<String, Object> handleValidationException(
+            MethodArgumentNotValidException ex,
+            HttpServletRequest request) {
+
+        String message = ex.getBindingResult()
+                .getFieldErrors()
+                .stream()
+                .findFirst()
+                .map(error -> error.getDefaultMessage())
+                .orElse("Validation failed");
+
+        return buildResponse(
+                HttpStatus.BAD_REQUEST,
+                message,
+                request.getRequestURI()
+        );
+    }
+
+    @ExceptionHandler(ConstraintViolationException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public Map<String, Object> handleConstraintViolation(
+            ConstraintViolationException ex,
+            HttpServletRequest request) {
+
+        String message = ex.getConstraintViolations()
+                .stream()
+                .findFirst()
+                .map(violation -> violation.getMessage())
+                .orElse("Validation failed");
+
+        return buildResponse(
+                HttpStatus.BAD_REQUEST,
+                message,
+                request.getRequestURI()
+        );
     }
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<Map<String, String>> handleGeneralException(
-            Exception ex) {
+    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+    public Map<String, Object> handleGeneralException(
+            Exception ex,
+            HttpServletRequest request) {
 
-        Map<String, String> response = new HashMap<>();
-        response.put("error", "Internal server error");
+        return buildResponse(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "Internal server error",
+                request.getRequestURI()
+        );
+    }
 
-        return ResponseEntity
-                .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(response);
+    private Map<String, Object> buildResponse(
+            HttpStatus status,
+            String message,
+            String path) {
+
+        Map<String, Object> response = new LinkedHashMap<>();
+
+        response.put("timestamp", LocalDateTime.now());
+        response.put("status", status.value());
+        response.put("error", status.getReasonPhrase());
+        response.put("message", message);
+        response.put("path", path);
+
+        return response;
     }
 }
