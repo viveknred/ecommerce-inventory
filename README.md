@@ -114,10 +114,6 @@ Replace `YOUR\_USERNAME` and `YOUR\_PASSWORD` with your local MySQL credentials.
 
 
 
-Do not commit database credentials or other secrets to GitHub.
-
-
-
 \## Project Structure
 
 
