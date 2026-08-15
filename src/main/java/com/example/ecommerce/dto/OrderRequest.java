@@ -11,6 +11,8 @@ public class OrderRequest {
     @NotNull(message = "User ID is required")
     private Long userId;
 
+    private String couponCode;
+
     @NotEmpty(message = "Order must contain at least one item")
     @Valid
     private List<OrderItemRequest> items;
@@ -24,6 +26,14 @@ public class OrderRequest {
 
     public void setUserId(Long userId) {
         this.userId = userId;
+    }
+
+    public String getCouponCode() {
+        return couponCode;
+    }
+
+    public void setCouponCode(String couponCode) {
+        this.couponCode = couponCode;
     }
 
     public List<OrderItemRequest> getItems() {

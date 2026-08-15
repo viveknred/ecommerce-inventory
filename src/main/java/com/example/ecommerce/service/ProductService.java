@@ -1,13 +1,17 @@
 package com.example.ecommerce.service;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 
+import com.example.ecommerce.audit.AuditAction;
 import com.example.ecommerce.dto.ProductRequest;
 import com.example.ecommerce.dto.ProductResponse;
 import com.example.ecommerce.entity.Product;
@@ -24,7 +28,12 @@ public class ProductService {
         this.productRepository = productRepository;
     }
 
+    @CacheEvict(value = {"products", "product"}, allEntries = true)
+    @AuditAction(
+            entity = "Product",
+            action = "STOCK_ADJUSTMENT")
     public ProductResponse create(ProductRequest request) {
+
         Product product = new Product();
 
         product.setName(request.getName());
@@ -34,36 +43,19 @@ public class ProductService {
 
         Product savedProduct = productRepository.save(product);
 
-        return new ProductResponse(
-                savedProduct.getId(),
-                savedProduct.getName(),
-                savedProduct.getCategory(),
-                savedProduct.getPrice(),
-                savedProduct.getStock()
-        );
+        return toResponse(savedProduct);
     }
 
-    public List<ProductResponse> getAll() {
-        return productRepository.findAll()
-                .stream()
-                .map(product -> new ProductResponse(
-                        product.getId(),
-                        product.getName(),
-                        product.getCategory(),
-                        product.getPrice(),
-                        product.getStock()
-                ))
-                .toList();
-    }
-
-    public Page<ProductResponse> search(
+    @Cacheable(value = "products")
+    public Page<ProductResponse> getProducts(
             String category,
             BigDecimal minPrice,
             BigDecimal maxPrice,
             Boolean inStock,
             Pageable pageable) {
 
-        Specification<Product> specification = Specification.unrestricted();
+        Specification<Product> specification =
+                Specification.unrestricted();
 
         if (category != null && !category.isBlank()) {
             specification = specification.and(
@@ -89,20 +81,106 @@ public class ProductService {
             );
         }
 
-        return productRepository.findAll(specification, pageable)
-                .map(product -> new ProductResponse(
-                        product.getId(),
-                        product.getName(),
-                        product.getCategory(),
-                        product.getPrice(),
-                        product.getStock()
-                ));
+        return productRepository
+                .findAll(specification, pageable)
+                .map(this::toResponse);
     }
 
+    public Page<ProductResponse> search(
+            String category,
+            BigDecimal minPrice,
+            BigDecimal maxPrice,
+            Boolean inStock,
+            Pageable pageable) {
+
+        return getProducts(
+                category,
+                minPrice,
+                maxPrice,
+                inStock,
+                pageable
+        );
+    }
+
+    @Cacheable(value = "product", key = "#id")
     public ProductResponse getById(Long id) {
+
         Product product = productRepository.findById(id)
                 .orElseThrow(() ->
-                        new ResourceNotFoundException("Product not found"));
+                        new ResourceNotFoundException(
+                                "Product not found"
+                        ));
+
+        return toResponse(product);
+    }
+
+    @CacheEvict(value = {"products", "product"}, allEntries = true)
+    @AuditAction(
+            entity = "Product",
+            action = "STOCK_ADJUSTMENT")
+    public ProductResponse update(
+            Long id,
+            ProductRequest request) {
+
+        Product product = productRepository.findById(id)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException(
+                                "Product not found"
+                        ));
+
+        product.setName(request.getName());
+        product.setCategory(request.getCategory());
+        product.setPrice(request.getPrice());
+        product.setStock(request.getStock());
+
+        Product updatedProduct =
+                productRepository.save(product);
+
+        return toResponse(updatedProduct);
+    }
+
+    @CacheEvict(value = {"products", "product"}, allEntries = true)
+    @AuditAction(
+            entity = "Product",
+            action = "STOCK_ADJUSTMENT")
+    public ProductResponse adjustStock(
+            Long id,
+            Integer quantity) {
+
+        Product product = productRepository.findById(id)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException(
+                                "Product not found"
+                        ));
+
+        int oldStock = product.getStock();
+
+        product.setStock(
+                oldStock + quantity
+        );
+
+        Product updatedProduct =
+                productRepository.save(product);
+
+        return toResponse(updatedProduct);
+    }
+
+    @CacheEvict(value = {"products", "product"}, allEntries = true)
+    @AuditAction(
+            entity = "Product",
+            action = "STOCK_ADJUSTMENT")
+    public void delete(Long id) {
+
+        if (!productRepository.existsById(id)) {
+            throw new ResourceNotFoundException(
+                    "Product not found"
+            );
+        }
+
+        productRepository.deleteById(id);
+    }
+
+    private ProductResponse toResponse(Product product) {
 
         return new ProductResponse(
                 product.getId(),
@@ -111,13 +189,5 @@ public class ProductService {
                 product.getPrice(),
                 product.getStock()
         );
-    }
-
-    public void delete(Long id) {
-        if (!productRepository.existsById(id)) {
-            throw new ResourceNotFoundException("Product not found");
-        }
-
-        productRepository.deleteById(id);
     }
 }

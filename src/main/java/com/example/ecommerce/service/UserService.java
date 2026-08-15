@@ -2,10 +2,12 @@ package com.example.ecommerce.service;
 
 import java.util.List;
 
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import com.example.ecommerce.dto.UserRequest;
 import com.example.ecommerce.dto.UserResponse;
+import com.example.ecommerce.entity.Role;
 import com.example.ecommerce.entity.User;
 import com.example.ecommerce.exception.ResourceNotFoundException;
 import com.example.ecommerce.repository.UserRepository;
@@ -14,9 +16,13 @@ import com.example.ecommerce.repository.UserRepository;
 public class UserService {
 
     private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
 
-    public UserService(UserRepository userRepository) {
+    public UserService(
+            UserRepository userRepository,
+            PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
+        this.passwordEncoder = passwordEncoder;
     }
 
     public UserResponse create(UserRequest request) {
@@ -25,26 +31,21 @@ public class UserService {
         }
 
         User user = new User();
+
         user.setName(request.getName());
         user.setEmail(request.getEmail());
+        user.setPassword(passwordEncoder.encode(request.getPassword()));
+        user.setRole(Role.CUSTOMER);
 
         User savedUser = userRepository.save(user);
 
-        return new UserResponse(
-                savedUser.getId(),
-                savedUser.getName(),
-                savedUser.getEmail()
-        );
+        return toResponse(savedUser);
     }
 
     public List<UserResponse> getAll() {
         return userRepository.findAll()
                 .stream()
-                .map(user -> new UserResponse(
-                        user.getId(),
-                        user.getName(),
-                        user.getEmail()
-                ))
+                .map(this::toResponse)
                 .toList();
     }
 
@@ -52,11 +53,7 @@ public class UserService {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
-        return new UserResponse(
-                user.getId(),
-                user.getName(),
-                user.getEmail()
-        );
+        return toResponse(user);
     }
 
     public void delete(Long id) {
@@ -65,5 +62,14 @@ public class UserService {
         }
 
         userRepository.deleteById(id);
+    }
+
+    private UserResponse toResponse(User user) {
+        return new UserResponse(
+                user.getId(),
+                user.getName(),
+                user.getEmail(),
+                user.getRole()
+        );
     }
 }

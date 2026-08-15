@@ -1,8 +1,8 @@
 {
   "info": {
-    "_postman_id": "ecommerce-inventory-assignment",
-    "name": "E-Commerce Inventory & Order Fulfillment",
-    "description": "Postman validation collection for the E-Commerce Inventory & Order Fulfillment Engine assignment.",
+    "_postman_id": "ecommerce-inventory-assignment-phase1-phase2",
+    "name": "E-Commerce Inventory & Order Fulfillment - Assignments 1 and 2",
+    "description": "Complete Postman validation collection for Assignment 1 and Assignment 2, including authentication, RBAC, dynamic product filtering, orders, coupons, payments, caching-related catalog tests, and admin audit-log access.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -12,7 +12,7 @@
     },
     {
       "key": "userId",
-      "value": "1"
+      "value": "5"
     },
     {
       "key": "productId",
@@ -23,16 +23,65 @@
       "value": "1"
     },
     {
-      "key": "stockBefore",
+      "key": "catalogProductId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "couponOrderId",
+      "value": ""
+    },
+    {
+      "key": "cancelOrderId",
+      "value": ""
+    },
+    {
+      "key": "couponCode",
+      "value": ""
+    },
+    {
+      "key": "expiredCouponCode",
+      "value": ""
+    },
+    {
+      "key": "inactiveCouponCode",
+      "value": ""
+    },
+    {
+      "key": "registeredCustomerEmail",
+      "value": ""
+    },
+    {
+      "key": "adminEmail",
+      "value": "admin@example.com"
+    },
+    {
+      "key": "customerEmail",
+      "value": "customer@example.com"
+    },
+    {
+      "key": "adminPassword",
+      "value": ""
+    },
+    {
+      "key": "customerPassword",
+      "value": ""
+    },
+    {
+      "key": "adminToken",
+      "value": ""
+    },
+    {
+      "key": "customerToken",
       "value": ""
     }
   ],
   "item": [
     {
-      "name": "1. Seed Data",
+      "name": "1. Authentication & RBAC",
       "item": [
         {
-          "name": "Create User",
+          "name": "Register Customer",
           "request": {
             "method": "POST",
             "header": [
@@ -41,15 +90,29 @@
                 "value": "application/json"
               }
             ],
+            "url": "{{baseUrl}}/api/v1/auth/register",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Postman User\",\n  \"email\": \"postman@example.com\"\n}"
-            },
-            "url": "{{baseUrl}}/users"
-          }
+              "raw": "{\n  \"name\": \"Postman Registered Customer\",\n  \"email\": \"{{$randomEmail}}\",\n  \"password\": \"{{customerPassword}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Response is successful or duplicate user validation is returned', function () {",
+                  "    pm.expect([201, 400]).to.include(pm.response.code);",
+                  "});",
+                  "try { const json = pm.response.json(); if (json.email) pm.environment.set('registeredCustomerEmail', json.email); } catch (e) {}"
+                ]
+              }
+            }
+          ]
         },
         {
-          "name": "Create Product",
+          "name": "Login - Customer",
           "request": {
             "method": "POST",
             "header": [
@@ -58,107 +121,451 @@
                 "value": "application/json"
               }
             ],
+            "url": "{{baseUrl}}/api/v1/auth/login",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Postman Test Phone\",\n  \"category\": \"Smartphone\",\n  \"price\": 50000,\n  \"stock\": 10\n}"
+              "raw": "{\n  \"email\": \"{{customerEmail}}\",\n  \"password\": \"{{customerPassword}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Login successful', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.environment.set('customerToken', json.token);",
+                  "if (json.email) pm.environment.set('customerEmail', json.email);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login - Admin",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Login successful', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.environment.set('adminToken', json.token);",
+                  "if (json.email) pm.environment.set('adminEmail', json.email);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Bearer Authorization - Customer",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/products?page=0&size=5",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Customer token authorizes protected endpoint', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "RBAC - Customer Blocked From Admin Endpoint",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/admin/coupons",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
             },
-            "url": "{{baseUrl}}/products"
-          }
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"RBAC-TEST-{{$timestamp}}\",\n  \"discountPercent\": 10,\n  \"expirationDate\": \"2026-12-31T23:59:59\",\n  \"isActive\": true\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Customer is forbidden', function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ]
         }
       ]
     },
     {
-      "name": "2. Dynamic Search Tests",
+      "name": "2. Product Catalog, Filtering & Caching",
       "item": [
         {
           "name": "All Products - Pagination",
           "request": {
             "method": "GET",
-            "url": "{{baseUrl}}/products/search?page=0&size=5"
-          }
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/products?page=0&size=5",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Products returned', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "Category Filter",
           "request": {
             "method": "GET",
-            "url": "{{baseUrl}}/products/search?category=Smartphone"
-          }
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/products?category=Smartphone&page=0&size=5",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Products returned', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "Minimum Price Filter",
           "request": {
             "method": "GET",
-            "url": "{{baseUrl}}/products/search?minPrice=50000"
-          }
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/products?minPrice=50000&page=0&size=5",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Products returned', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "Maximum Price Filter",
           "request": {
             "method": "GET",
-            "url": "{{baseUrl}}/products/search?maxPrice=50000"
-          }
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/products?maxPrice=75000&page=0&size=5",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Products returned', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "Price Range Filter",
           "request": {
             "method": "GET",
-            "url": "{{baseUrl}}/products/search?minPrice=50000&maxPrice=75000"
-          }
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/products?minPrice=50000&maxPrice=75000&page=0&size=5",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Products returned', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "In Stock Filter",
           "request": {
             "method": "GET",
-            "url": "{{baseUrl}}/products/search?inStock=true"
-          }
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/products?inStock=true&page=0&size=5",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Products returned', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "Multi-Parameter Filter",
           "request": {
             "method": "GET",
-            "url": "{{baseUrl}}/products/search?category=Smartphone&minPrice=50000&maxPrice=75000&inStock=true"
-          }
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/products?category=Smartphone&minPrice=50000&maxPrice=75000&inStock=true&page=0&size=5&sort=price,desc",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Products returned', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "Out of Bounds Page",
           "request": {
             "method": "GET",
-            "url": "{{baseUrl}}/products/search?page=999&size=5"
-          }
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/products?page=999&size=5",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Out-of-bounds page handled', function () { pm.expect(pm.response.code).to.be.oneOf([200, 400]); });"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "Sort by Price Descending",
           "request": {
             "method": "GET",
-            "url": "{{baseUrl}}/products/search?sort=price,desc"
-          }
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/products?sort=price,desc&page=0&size=5",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Products returned', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "Multi-Field Sorting",
           "request": {
             "method": "GET",
-            "url": "{{baseUrl}}/products/search?sort=category,asc&sort=price,desc"
-          }
-        }
-      ]
-    },
-    {
-      "name": "3. Order Lifecycle Tests",
-      "item": [
-        {
-          "name": "Create Order - PENDING",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/products?sort=category,asc&sort=price,desc&page=0&size=5",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
           "event": [
             {
               "listen": "test",
               "script": {
+                "type": "text/javascript",
                 "exec": [
-                  "const json = pm.response.json();",
-                  "if (json.id) pm.collectionVariables.set('orderId', json.id);",
-                  "if (json.items && json.items.length > 0 && json.items[0].product && json.items[0].product.id) pm.collectionVariables.set('productId', json.items[0].product.id);"
+                  "pm.test('Products returned', function () { pm.response.to.have.status(200); });"
                 ]
               }
             }
-          ],
+          ]
+        },
+        {
+          "name": "Get Product By ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/products/{{productId}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Product retrieved', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Product - Admin",
           "request": {
             "method": "POST",
             "header": [
@@ -167,40 +574,534 @@
                 "value": "application/json"
               }
             ],
+            "url": "{{baseUrl}}/api/v1/products",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"userId\": 1,\n  \"items\": [\n    {\n      \"productId\": 1,\n      \"quantity\": 1\n    }\n  ]\n}"
+              "raw": "{\n  \"name\": \"Postman Cache/Audit Product\",\n  \"category\": \"Electronics\",\n  \"price\": 2499.0,\n  \"stock\": 20\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Product created', function () { pm.response.to.have.status(201); });",
+                  "const json = pm.response.json();",
+                  "if (json.id) pm.environment.set('catalogProductId', json.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Product - Admin",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/products/{{catalogProductId}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
             },
-            "url": "{{baseUrl}}/orders"
-          }
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman Cache/Audit Product Updated\",\n  \"category\": \"Electronics\",\n  \"price\": 2599.0,\n  \"stock\": 25\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Product updated', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete Product - Admin",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/products/{{catalogProductId}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Product deleted', function () { pm.response.to.have.status(204); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3. Coupon Engine",
+      "item": [
+        {
+          "name": "Create Valid Coupon",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/admin/coupons",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"{{couponCode}}\",\n  \"discountPercent\": 20,\n  \"expirationDate\": \"2026-12-31T23:59:59\",\n  \"isActive\": true\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.environment.set('couponCode', 'SAVE20-' + Date.now());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Coupon created', function () { pm.response.to.have.status(201); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Expired Coupon",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/admin/coupons",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"{{expiredCouponCode}}\",\n  \"discountPercent\": 20,\n  \"expirationDate\": \"2025-12-31T23:59:59\",\n  \"isActive\": true\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.environment.set('expiredCouponCode', 'EXPIRED20-' + Date.now());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Coupon created', function () { pm.response.to.have.status(201); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Inactive Coupon",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/admin/coupons",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"{{inactiveCouponCode}}\",\n  \"discountPercent\": 20,\n  \"expirationDate\": \"2026-12-31T23:59:59\",\n  \"isActive\": false\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.environment.set('inactiveCouponCode', 'INACTIVE20-' + Date.now());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Coupon created', function () { pm.response.to.have.status(201); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Invalid Coupon During Order",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/orders",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"couponCode\": \"INVALID-COUPON\",\n  \"items\": [\n    {\n      \"productId\": \"{{productId}}\",\n      \"quantity\": 1\n    }\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Invalid coupon returns 400', function () { pm.response.to.have.status(400); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Expired Coupon During Order",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/orders",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"couponCode\": \"{{expiredCouponCode}}\",\n  \"items\": [\n    {\n      \"productId\": \"1\",\n      \"quantity\": 1\n    }\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Expired coupon returns 400', function () { pm.response.to.have.status(400); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Inactive Coupon During Order",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/orders",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"couponCode\": \"{{inactiveCouponCode}}\",\n  \"items\": [\n    {\n      \"productId\": \"1\",\n      \"quantity\": 1\n    }\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Inactive coupon returns 400', function () { pm.response.to.have.status(400); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "4. Orders, Payments & State Machine",
+      "item": [
+        {
+          "name": "Create Order - PENDING",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/orders",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"items\": [\n    {\n      \"productId\": \"{{productId}}\",\n      \"quantity\": 1\n    }\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Order created', function () { pm.response.to.have.status(201); });",
+                  "const json = pm.response.json();",
+                  "if (json.id) pm.environment.set('orderId', json.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Order With Coupon",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/orders",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"couponCode\": \"{{couponCode}}\",\n  \"items\": [\n    {\n      \"productId\": \"1\",\n      \"quantity\": 1\n    }\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Coupon order created', function () { pm.response.to.have.status(201); });",
+                  "const json = pm.response.json();",
+                  "if (json.id) pm.environment.set('couponOrderId', json.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get My Orders",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/orders/my-orders",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('My orders returned', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "Get Order",
           "request": {
             "method": "GET",
-            "url": "{{baseUrl}}/orders/{{orderId}}"
-          }
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/orders/{orderId}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Order retrieved', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
         },
         {
-          "name": "PENDING to PAID",
+          "name": "Get Orders By User - Admin",
           "request": {
-            "method": "PATCH",
-            "url": "{{baseUrl}}/orders/{{orderId}}/status?status=PAID"
-          }
-        },
-        {
-          "name": "PAID to SHIPPED",
-          "request": {
-            "method": "PATCH",
-            "url": "{{baseUrl}}/orders/{{orderId}}/status?status=SHIPPED"
-          }
-        },
-        {
-          "name": "Illegal Transition - SHIPPED to CANCELLED",
-          "request": {
-            "method": "PATCH",
-            "url": "{{baseUrl}}/orders/{{orderId}}/status?status=CANCELLED"
-          }
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/orders/user/{userId}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Admin retrieved user orders', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "Insufficient Stock",
@@ -212,12 +1113,33 @@
                 "value": "application/json"
               }
             ],
+            "url": "{{baseUrl}}/api/v1/orders",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"userId\": 1,\n  \"items\": [\n    {\n      \"productId\": 1,\n      \"quantity\": 999999\n    }\n  ]\n}"
-            },
-            "url": "{{baseUrl}}/orders"
-          }
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"items\": [\n    {\n      \"productId\": \"1\",\n      \"quantity\": 999999\n    }\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Insufficient stock returns 400', function () { pm.response.to.have.status(400); });"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "Invalid Quantity - Zero",
@@ -229,12 +1151,33 @@
                 "value": "application/json"
               }
             ],
+            "url": "{{baseUrl}}/api/v1/orders",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"userId\": 1,\n  \"items\": [\n    {\n      \"productId\": 1,\n      \"quantity\": 0\n    }\n  ]\n}"
-            },
-            "url": "{{baseUrl}}/orders"
-          }
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"items\": [\n    {\n      \"productId\": \"1\",\n      \"quantity\": 0\n    }\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Zero quantity returns 400', function () { pm.response.to.have.status(400); });"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "Invalid Quantity - Negative",
@@ -246,31 +1189,36 @@
                 "value": "application/json"
               }
             ],
+            "url": "{{baseUrl}}/api/v1/orders",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"userId\": 1,\n  \"items\": [\n    {\n      \"productId\": 1,\n      \"quantity\": -1\n    }\n  ]\n}"
-            },
-            "url": "{{baseUrl}}/orders"
-          }
-        }
-      ]
-    },
-    {
-      "name": "4. Cancellation & Stock Restoration",
-      "item": [
-        {
-          "name": "Create Cancellation Test Order",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"items\": [\n    {\n      \"productId\": \"1\",\n      \"quantity\": -1\n    }\n  ]\n}"
+            }
+          },
           "event": [
             {
               "listen": "test",
               "script": {
+                "type": "text/javascript",
                 "exec": [
-                  "const json = pm.response.json();",
-                  "if (json.id) pm.collectionVariables.set('orderId', json.id);"
+                  "pm.test('Negative quantity returns 400', function () { pm.response.to.have.status(400); });"
                 ]
               }
             }
-          ],
+          ]
+        },
+        {
+          "name": "Process Payment",
           "request": {
             "method": "POST",
             "header": [
@@ -279,33 +1227,315 @@
                 "value": "application/json"
               }
             ],
+            "url": "{{baseUrl}}/api/v1/payments",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"userId\": 1,\n  \"items\": [\n    {\n      \"productId\": 1,\n      \"quantity\": 1\n    }\n  ]\n}"
+              "raw": "{\n  \"orderId\": \"{{orderId}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Payment successful', function () { pm.response.to.have.status(201); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Payment",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/payments/order/{orderId}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Payment retrieved', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PAID to SHIPPED",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/orders/{orderId}/status?newStatus=SHIPPED",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Order shipped', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Illegal Transition - SHIPPED to CANCELLED",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/orders/{orderId}/status?newStatus=CANCELLED",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Illegal transition returns 422', function () { pm.response.to.have.status(422); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "5. Cancellation & Stock Restoration",
+      "item": [
+        {
+          "name": "Create Cancellation Test Order",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/orders",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
             },
-            "url": "{{baseUrl}}/orders"
-          }
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"items\": [\n    {\n      \"productId\": \"1\",\n      \"quantity\": 1\n    }\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Cancellation order created', function () { pm.response.to.have.status(201); });",
+                  "const json = pm.response.json();",
+                  "if (json.id) pm.environment.set('cancelOrderId', json.id);"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "Get Product Before Cancellation",
           "request": {
             "method": "GET",
-            "url": "{{baseUrl}}/products/{{productId}}"
-          }
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/products/1",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Product returned before cancellation', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "Cancel PENDING Order",
           "request": {
             "method": "PATCH",
-            "url": "{{baseUrl}}/orders/{{orderId}}/status?status=CANCELLED"
-          }
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/orders/{cancelOrderId}/status?newStatus=CANCELLED",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Order cancelled', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
         },
         {
           "name": "Get Product After Cancellation",
           "request": {
             "method": "GET",
-            "url": "{{baseUrl}}/products/{{productId}}"
-          }
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/products/1",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Product returned after cancellation', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "6. Audit Logging",
+      "item": [
+        {
+          "name": "Get Audit Logs - Admin",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/admin/audit-logs?page=0&size=10&sort=id,desc",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Admin can read audit logs', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Audit Logs - Customer - Forbidden",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/admin/audit-logs?page=0&size=10&sort=id,desc",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Customer is forbidden from audit logs', function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ]
         }
       ]
     }

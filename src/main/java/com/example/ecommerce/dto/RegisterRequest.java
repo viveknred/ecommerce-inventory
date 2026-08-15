@@ -3,7 +3,7 @@ package com.example.ecommerce.dto;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 
-public class UserRequest {
+public class RegisterRequest {
 
     @NotBlank
     private String name;
@@ -15,7 +15,7 @@ public class UserRequest {
     @NotBlank
     private String password;
 
-    public UserRequest() {
+    public RegisterRequest() {
     }
 
     public String getName() {

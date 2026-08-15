@@ -1,7 +1,3 @@
-INSERT IGNORE INTO users (id, email, name, created_at)
-VALUES
-(1, 'vivek@example.com', 'Vivek', CURRENT_TIMESTAMP);
-
 INSERT IGNORE INTO products
 (id, name, category, price, stock_quantity, version)
 VALUES

@@ -1,1180 +1,792 @@
-\# E-Commerce Inventory \& Order Fulfillment Engine
+# E-Commerce Inventory & Order Fulfillment Engine
 
+A Spring Boot REST API for managing users, products, inventory, orders, coupons, payments, authentication, caching, and audit logging.
 
+This project implements the requirements from both the E-Commerce Inventory & Order Fulfillment Engine Phase 1 assignment and the Phase 2 Security, Coupons, Caching & Audit Logging assignment.
 
-A Spring Boot REST API for managing users, products, inventory, and e-commerce orders.
+## Technologies Used
 
+- Java 21
+- Spring Boot 4.1.0
+- Spring Data JPA
+- Hibernate
+- Spring Security
+- JWT
+- Spring Cache (in-memory cache)
+- Spring AOP / AspectJ
+- MySQL 8
+- Gradle
+- Swagger / OpenAPI
+- Postman
+- Git and GitHub
 
+## Prerequisites
 
-\## Technologies Used
+Before running the application, install:
 
-
-
-\- Java 23
-
-\- Spring Boot
-
-\- Spring Data JPA
-
-\- Hibernate
-
-\- MySQL 8
-
-\- Gradle
-
-\- Postman
-
-\- Git and GitHub
-
-
-
-\## Prerequisites
-
-
-
-Before running the application, make sure the following are installed:
-
-
-
-\- Java 23
-
-\- MySQL 8.0 or later
-
-\- Git
-
-\- Postman
-
-\- Spring Tool Suite (STS), IntelliJ IDEA, or another Java IDE
-
-
+- Java 21
+- MySQL 8.0 or later
+- Git
+- Postman
+- Spring Tool Suite (STS), IntelliJ IDEA, or another Java IDE
 
 Check Java:
 
-
-
 ```bash
-
 java -version
-
 ```
 
+The Gradle build uses the Java 21 toolchain.
 
-
-\## Database Setup
-
-
+## Database Setup
 
 Create the MySQL database:
 
-
-
 ```sql
-
-CREATE DATABASE ecommerce\_inventory;
-
+CREATE DATABASE ecommerce_inventory;
 ```
 
-
-
-The application connects to MySQL using the configuration in:
-
-
+The application connects to MySQL using:
 
 ```text
-
 src/main/resources/application.properties
-
 ```
 
-
-
-Configure your database username and password:
-
-
+Configure your local credentials:
 
 ```properties
-
-spring.datasource.url=jdbc:mysql://localhost:3306/ecommerce\_inventory
-
-spring.datasource.username=YOUR\_USERNAME
-
-spring.datasource.password=YOUR\_PASSWORD
-
-
+spring.datasource.url=jdbc:mysql://localhost:3306/ecommerce_inventory
+spring.datasource.username=YOUR_USERNAME
+spring.datasource.password=YOUR_PASSWORD
 
 spring.jpa.hibernate.ddl-auto=update
-
 spring.jpa.show-sql=true
+spring.jpa.properties.hibernate.format_sql=true
+spring.jpa.defer-datasource-initialization=true
 
+server.port=8080
 ```
 
+Do not commit database passwords, JWT secrets, or other local credentials to GitHub.
 
-
-Replace `YOUR\_USERNAME` and `YOUR\_PASSWORD` with your local MySQL credentials.
-
-
-
-\## Project Structure
-
-
+The project also contains:
 
 ```text
+src/main/resources/data.sql
+```
 
+for database startup data used by the application.
+
+### Existing Database Migration
+
+If an existing database contains the old `orders.created_at` column from an earlier project version, rename it to the assignment-required `order_date` column:
+
+```sql
+USE ecommerce_inventory;
+
+ALTER TABLE orders
+CHANGE COLUMN created_at order_date DATETIME NOT NULL;
+```
+
+## Project Structure
+
+```text
 src/main/java/com/example/ecommerce/
-
+├── audit/
+│   ├── AuditAction.java
+│   └── AuditAspect.java
+│
+├── config/
+│   ├── CacheConfig.java
+│   ├── OpenApiConfig.java
+│   └── SecurityConfig.java
+│
 ├── controller/
-
+│   ├── AuditLogController.java
+│   ├── AuthController.java
+│   ├── CouponController.java
 │   ├── OrderController.java
-
+│   ├── PaymentController.java
 │   ├── ProductController.java
-
 │   └── UserController.java
-
 │
-
 ├── dto/
-
+│   ├── CouponRequest.java
+│   ├── CouponResponse.java
+│   ├── LoginRequest.java
+│   ├── LoginResponse.java
 │   ├── OrderItemRequest.java
-
 │   ├── OrderRequest.java
-
+│   ├── PaymentRequest.java
+│   ├── PaymentResponse.java
 │   ├── ProductRequest.java
-
 │   ├── ProductResponse.java
-
+│   ├── RegisterRequest.java
 │   ├── UserRequest.java
-
 │   └── UserResponse.java
-
 │
-
 ├── entity/
-
+│   ├── AuditLog.java
+│   ├── Coupon.java
 │   ├── Order.java
-
 │   ├── OrderItem.java
-
 │   ├── OrderStatus.java
-
+│   ├── Payment.java
+│   ├── PaymentStatus.java
 │   ├── Product.java
-
+│   ├── Role.java
 │   └── User.java
-
 │
-
 ├── exception/
-
 │   ├── GlobalExceptionHandler.java
-
 │   ├── InsufficientStockException.java
-
+│   ├── InvalidCouponException.java
 │   ├── InvalidStateTransitionException.java
-
 │   └── ResourceNotFoundException.java
-
 │
-
 ├── repository/
-
+│   ├── AuditLogRepository.java
+│   ├── CouponRepository.java
 │   ├── OrderItemRepository.java
-
 │   ├── OrderRepository.java
-
+│   ├── PaymentRepository.java
 │   ├── ProductRepository.java
-
 │   └── UserRepository.java
-
 │
-
+├── security/
+│   ├── CustomUserDetailsService.java
+│   ├── JwtAuthenticationFilter.java
+│   └── JwtService.java
+│
 ├── service/
-
+│   ├── AuthService.java
+│   ├── CouponService.java
 │   ├── OrderService.java
-
+│   ├── PaymentService.java
 │   ├── ProductService.java
-
 │   └── UserService.java
-
 │
-
 └── specification/
-
-&#x20;   └── ProductSpecification.java
-
+    └── ProductSpecification.java
 ```
 
+## Build the Application
 
-
-\## Build the Application
-
-
-
-From the project root directory:
-
-
+From the project root:
 
 ```cmd
-
 gradlew.bat clean build
-
 ```
 
+A successful build ends with:
 
+```text
+BUILD SUCCESSFUL
+```
 
-If the build is successful, the project is ready to run.
-
-
-
-\## Run the Application
-
-
-
-Run:
-
-
+## Run the Application
 
 ```cmd
-
 gradlew.bat bootRun
-
 ```
 
-
-
-The application starts on:
-
-
+The application starts at:
 
 ```text
-
 http://localhost:8080
-
 ```
 
+## Swagger / OpenAPI
 
+Swagger UI:
 
-\## API Endpoints
+```text
+http://localhost:8080/swagger-ui/index.html
+```
 
+OpenAPI JSON:
 
+```text
+http://localhost:8080/v3/api-docs
+```
 
-\### Users
+Use the **Authorize** button in Swagger and enter the JWT token returned by the login endpoint.
 
+The value must be the JWT itself. Swagger sends it as:
 
+```text
+Authorization: Bearer <JWT_TOKEN>
+```
 
-\#### Create User
+## Authentication and RBAC
 
-
+### Register
 
 ```http
-
-POST /users
-
+POST /api/v1/auth/register
 ```
 
-
-
 Example:
-
-
 
 ```json
-
 {
-
-&#x20;   "email": "vivek@example.com",
-
-&#x20;   "name": "Vivek"
-
+  "name": "New Customer",
+  "email": "newcustomer@example.com",
+  "password": "YourPassword"
 }
-
 ```
 
+Registration creates a CUSTOMER account.
 
-
-\#### Get User
-
-
+### Login
 
 ```http
-
-GET /users/{id}
-
+POST /api/v1/auth/login
 ```
-
-
-
-\---
-
-
-
-\### Products
-
-
-
-\#### Create Product
-
-
-
-```http
-
-POST /products
-
-```
-
-
-
-Header:
-
-
-
-```text
-
-Content-Type: application/json
-
-```
-
-
 
 Example:
-
-
 
 ```json
-
 {
-
-&#x20;   "name": "iPhone 15",
-
-&#x20;   "category": "Smartphone",
-
-&#x20;   "price": 65000,
-
-&#x20;   "stock": 10
-
+  "email": "customer@example.com",
+  "password": "YOUR_CUSTOMER_PASSWORD"
 }
-
 ```
 
-
-
-\#### Get All Products
-
-
-
-```http
-
-GET /products
-
-```
-
-
-
-\#### Get Product by ID
-
-
-
-```http
-
-GET /products/{id}
-
-```
-
-
-
-\#### Delete Product
-
-
-
-```http
-
-DELETE /products/{id}
-
-```
-
-
-
-\## Product Search
-
-
-
-Products can be searched using multiple optional filters.
-
-
-
-\### Category
-
-
-
-```http
-
-GET /products/search?category=Smartphone
-
-```
-
-
-
-Category matching is case-insensitive and supports partial matching.
-
-
-
-\### Minimum Price
-
-
-
-```http
-
-GET /products/search?minPrice=50000
-
-```
-
-
-
-\### Maximum Price
-
-
-
-```http
-
-GET /products/search?maxPrice=60000
-
-```
-
-
-
-\### Price Range
-
-
-
-```http
-
-GET /products/search?minPrice=50000\&maxPrice=70000
-
-```
-
-
-
-\### In-Stock Products
-
-
-
-```http
-
-GET /products/search?inStock=true
-
-```
-
-
-
-\### Multiple Filters
-
-
-
-```http
-
-GET /products/search?category=Smartphone\&minPrice=50000\&maxPrice=70000\&inStock=true
-
-```
-
-
-
-\## Pagination
-
-
-
-Pagination is supported through Spring Data's `Pageable`.
-
-
-
-Example:
-
-
-
-```http
-
-GET /products/search?page=0\&size=5
-
-```
-
-
-
-The response contains pagination information such as:
-
-
-
-\- Current page
-
-\- Page size
-
-\- Total elements
-
-\- Total pages
-
-\- First/last page indicators
-
-
-
-\## Sorting
-
-
-
-Products can be sorted using the `sort` parameter.
-
-
-
-Sort by price ascending:
-
-
-
-```http
-
-GET /products/search?sort=price,asc
-
-```
-
-
-
-Sort by price descending:
-
-
-
-```http
-
-GET /products/search?sort=price,desc
-
-```
-
-
-
-Multiple sorting fields can also be supplied:
-
-
-
-```http
-
-GET /products/search?sort=category,asc\&sort=price,desc
-
-```
-
-
-
-\## Orders
-
-
-
-\### Create Order
-
-
-
-```http
-
-POST /orders
-
-```
-
-
-
-Header:
-
-
-
-```text
-
-Content-Type: application/json
-
-```
-
-
-
-Example:
-
-
+The response contains:
 
 ```json
-
 {
-
-&#x20;   "userId": 1,
-
-&#x20;   "items": \[
-
-&#x20;       {
-
-&#x20;           "productId": 1,
-
-&#x20;           "quantity": 2
-
-&#x20;       }
-
-&#x20;   ]
-
+  "token": "<JWT>",
+  "email": "customer@example.com",
+  "role": "CUSTOMER"
 }
-
 ```
 
+### Test Accounts
 
+The current database contains these test identities:
 
-When an order is created:
+| Purpose | Email | Role |
+|---|---|---|
+| Admin | `admin@example.com` | ADMIN |
+| Customer | `customer@example.com` | CUSTOMER |
 
+Passwords are not stored in this README. Use the passwords configured when these accounts were created and put them into the Postman environment before running the login requests.
 
+### Role Permissions
 
-1\. The user is validated.
+#### CUSTOMER
 
-2\. Each product is validated.
+- Browse products
+- Search/filter products
+- Place orders
+- View own order history
+- Process payment for own orders
+- Access customer-level endpoints only
 
-3\. Available stock is checked.
+#### ADMIN
 
-4\. Product stock is reduced.
+- Add products
+- Update products/inventory
+- Delete products
+- Create coupons
+- Change order status
+- View audit logs
 
-5\. The order total is calculated.
+Admin-only operations return HTTP 403 for CUSTOMER users.
 
-6\. Order items are created.
+## API Endpoints
 
-7\. The order is created with `PENDING` status.
+### Authentication
 
+| Method | Endpoint | Access |
+|---|---|---|
+| POST | `/api/v1/auth/register` | Public |
+| POST | `/api/v1/auth/login` | Public |
 
+### Users
 
-\### Get Order
+| Method | Endpoint | Access |
+|---|---|---|
+| POST | `/api/v1/users` | Authenticated |
+| GET | `/api/v1/users` | Authenticated |
+| GET | `/api/v1/users/{id}` | Authenticated |
+| DELETE | `/api/v1/users/{id}` | Authenticated / according to current security configuration |
 
+### Products
 
+The assignment-compliant catalog endpoint is:
 
 ```http
-
-GET /orders/{id}
-
+GET /api/v1/products
 ```
 
+It supports all of the required optional parameters:
 
+- `category`
+- `minPrice`
+- `maxPrice`
+- `inStock`
+- `page`
+- `size`
+- `sort`
 
-\### Get Orders by User
-
-
+Examples:
 
 ```http
-
-GET /orders/user/{userId}
-
+GET /api/v1/products
 ```
 
-
-
-\## Order Status
-
-
-
-The available statuses are:
-
-
-
-```text
-
-PENDING
-
-PAID
-
-SHIPPED
-
-CANCELLED
-
+```http
+GET /api/v1/products?category=phone
 ```
 
+```http
+GET /api/v1/products?minPrice=1000&maxPrice=50000
+```
 
+```http
+GET /api/v1/products?inStock=true
+```
 
-Valid transitions include:
+```http
+GET /api/v1/products?page=0&size=5
+```
 
+```http
+GET /api/v1/products?sort=price,desc
+```
 
+Multiple sort values can be supplied:
+
+```http
+GET /api/v1/products?sort=category,asc&sort=price,desc
+```
+
+Other product endpoints:
+
+| Method | Endpoint | Access |
+|---|---|---|
+| POST | `/api/v1/products` | ADMIN |
+| GET | `/api/v1/products/{id}` | CUSTOMER / ADMIN |
+| PUT | `/api/v1/products/{id}` | ADMIN |
+| DELETE | `/api/v1/products/{id}` | ADMIN |
+
+A backward-compatible search endpoint is also retained:
+
+```http
+GET /api/v1/products/search
+```
+
+### Product Caching
+
+Spring Cache is enabled with an in-memory cache.
+
+The catalog GET endpoint uses:
+
+```java
+@Cacheable(value = "products")
+```
+
+Product creation, update, and deletion evict the product caches so stale inventory and pricing are not served.
+
+### Orders
+
+Create order:
+
+```http
+POST /api/v1/orders
+```
+
+Example without a coupon:
+
+```json
+{
+  "userId": 1,
+  "items": [
+    {
+      "productId": 1,
+      "quantity": 2
+    }
+  ]
+}
+```
+
+Example with a coupon:
+
+```json
+{
+  "userId": 1,
+  "couponCode": "SAVE20",
+  "items": [
+    {
+      "productId": 1,
+      "quantity": 2
+    }
+  ]
+}
+```
+
+Order processing:
+
+1. Validate the user.
+2. Validate each product.
+3. Check available stock.
+4. Calculate item totals.
+5. Validate an optional coupon.
+6. Apply the coupon discount.
+7. Deduct inventory.
+8. Save the order with `PENDING` status.
+
+Order endpoints:
+
+| Method | Endpoint | Access |
+|---|---|---|
+| POST | `/api/v1/orders` | CUSTOMER / ADMIN |
+| GET | `/api/v1/orders/{id}` | CUSTOMER / ADMIN (ownership enforced for CUSTOMER) |
+| GET | `/api/v1/orders/my-orders` | CUSTOMER / ADMIN |
+| GET | `/api/v1/orders/user/{userId}` | ADMIN |
+| PATCH | `/api/v1/orders/{id}/status?newStatus={STATUS}` | ADMIN |
+
+### Order State Machine
+
+Allowed transitions:
 
 ```text
-
 PENDING  -> PAID
-
-PAID     -> SHIPPED
-
 PENDING  -> CANCELLED
 
+PAID     -> SHIPPED
+PAID     -> CANCELLED
+
+SHIPPED  -> terminal
+CANCELLED -> terminal
 ```
-
-
-
-Invalid status transitions are rejected.
-
-
-
-\### Update Order Status
-
-
-
-```http
-
-PATCH /orders/{id}/status?status=PAID
-
-```
-
-
 
 Example:
 
-
-
 ```http
-
-PATCH /orders/1/status?status=PAID
-
+PATCH /api/v1/orders/1/status?newStatus=PAID
 ```
 
-
-
-Then:
-
-
-
 ```http
-
-PATCH /orders/1/status?status=SHIPPED
-
+PATCH /api/v1/orders/1/status?newStatus=SHIPPED
 ```
 
-
-
-To cancel a pending order:
-
-
-
 ```http
-
-PATCH /orders/1/status?status=CANCELLED
-
+PATCH /api/v1/orders/1/status?newStatus=CANCELLED
 ```
 
+Cancellation restores the purchased inventory within the same transaction.
 
+### Inventory
 
-When an order is cancelled, the purchased quantities are restored to the product inventory.
-
-
-
-\## Inventory Management
-
-
-
-When an order is successfully created, the requested quantity is deducted from the product stock.
-
-
-
-For example:
-
-
+If a product has:
 
 ```text
-
 Initial stock: 10
-
 Order quantity: 2
-
-Remaining stock: 8
-
 ```
 
-
-
-If the order is cancelled:
-
-
+the remaining stock becomes:
 
 ```text
-
-Stock before cancellation: 8
-
-Restored quantity: 2
-
-Stock after cancellation: 10
-
+8
 ```
 
-
-
-If the requested quantity is greater than the available stock, the order is rejected.
-
-
-
-Example:
-
-
+If the order is cancelled, the stock is restored to:
 
 ```text
-
-Available stock: 9
-
-Requested quantity: 20
-
+10
 ```
 
+Insufficient stock is rejected with HTTP 400.
 
+The Product entity uses JPA optimistic locking through `@Version` to help protect concurrent inventory updates.
 
-The API returns an insufficient stock error.
+## Coupons
 
+Coupon creation is ADMIN-only:
 
-
-\## Transaction Management
-
-
-
-Order creation and order status updates use transactional processing.
-
-
-
-This ensures that related database operations are handled consistently.
-
-
-
-For example, during order creation, stock deduction and order creation are performed within the same transaction.
-
-
-
-If an operation fails, the transaction can be rolled back.
-
-
-
-\## Optimistic Locking
-
-
-
-The `Product` entity uses JPA optimistic locking with the `@Version` annotation.
-
-
-
-This helps prevent conflicting concurrent updates to product inventory.
-
-
-
-\## Validation
-
-
-
-The application validates incoming request data.
-
-
-
-Examples include:
-
-
-
-\- Required product name
-
-\- Required category
-
-\- Non-negative product price
-
-\- Non-negative stock quantity
-
-\- Valid order quantities
-
-\- Required user information
-
-\- Required product information
-
-
-
-Invalid requests are rejected with appropriate error responses.
-
-
-
-\## Exception Handling
-
-
-
-The application uses a global exception handler to provide consistent error responses.
-
-
-
-\### Resource Not Found
-
-
-
-Used when a requested user, product, or order does not exist.
-
-
+```http
+POST /api/v1/admin/coupons
+```
 
 Example:
 
-
-
 ```json
-
 {
-
-&#x20;   "error": "Product not found"
-
+  "code": "SAVE20",
+  "discountPercent": 20,
+  "expirationDate": "2026-12-31T23:59:59",
+  "isActive": true
 }
-
 ```
 
+Coupon validation checks:
 
+1. Coupon exists.
+2. Coupon is active.
+3. Coupon expiration date is after the current timestamp.
 
-\### Insufficient Stock
+An invalid, inactive, expired, or non-existent coupon produces HTTP 400 through `InvalidCouponException`.
 
+## Payments
 
+Payment processing is an additional feature implemented on top of the assignment order workflow.
 
-Returned when the requested order quantity exceeds available inventory.
+Process payment:
 
-
+```http
+POST /api/v1/payments
+```
 
 Example:
 
-
-
 ```json
-
 {
-
-&#x20;   "error": "Insufficient stock for product: iPhone 15"
-
+  "orderId": 1
 }
-
 ```
 
+A successful payment creates a payment record and moves the order from `PENDING` to `PAID`.
 
+Get payment for an order:
 
-\### Invalid State Transition
-
-
-
-Returned when an invalid order status transition is requested.
-
-
-
-Example:
-
-
-
-```json
-
-{
-
-&#x20;   "error": "Invalid status transition from SHIPPED to CANCELLED"
-
-}
-
+```http
+GET /api/v1/payments/order/1
 ```
 
+Payment states:
 
-
-\## Postman Testing
-
-
-
-The APIs were tested using Postman.
-
-
-
-The project includes a Postman collection containing tests for:
-
-
-
-\- User creation
-
-\- Product creation
-
-\- Product retrieval
-
-\- Product deletion
-
-\- Product category filtering
-
-\- Minimum price filtering
-
-\- Maximum price filtering
-
-\- Price range filtering
-
-\- Stock filtering
-
-\- Pagination
-
-\- Sorting
-
-\- Multiple search filters
-
-\- Order creation
-
-\- Inventory deduction
-
-\- Payment status update
-
-\- Shipping status update
-
-\- Order cancellation
-
-\- Inventory restoration
-
-\- Insufficient stock
-
-\- Invalid quantity
-
-\- Invalid user
-
-\- Invalid product
-
-\- Invalid order status transition
-
-
-
-Import the Postman collection and start the Spring Boot application before running the requests.
-
-
-
-\## Error Response Format
-
-
-
-Errors are returned as JSON.
-
-
-
-Example:
-
-
-
-```json
-
-{
-
-&#x20;   "error": "Resource not found"
-
-}
-
+```text
+PENDING
+SUCCESS
+FAILED
 ```
 
+## Audit Logging
 
+Spring AOP is used to record audit events automatically.
 
-\## GitHub Repository
+The audit log stores:
 
+- `entity_name`
+- `action`
+- `changed_by`
+- `timestamp`
+- `details`
 
+Tracked events include:
 
-The source code is available at:
+- Order status changes
+- Product stock adjustments
+- Stock reduction during order creation
+- Inventory restoration during cancellation
+- Product inventory updates
 
+Admin audit endpoint:
 
+```http
+GET /api/v1/admin/audit-logs?page=0&size=10&sort=id,desc
+```
 
+CUSTOMER access is rejected with HTTP 403.
+
+## Validation and Exception Handling
+
+The application uses `@RestControllerAdvice` for consistent JSON errors.
+
+Standard response structure:
+
+```json
+{
+  "timestamp": "2026-08-14T12:00:00",
+  "status": 400,
+  "error": "Bad Request",
+  "message": "...",
+  "path": "/api/v1/orders"
+}
+```
+
+Exception mapping includes:
+
+| Exception | HTTP Status | Example |
+|---|---:|---|
+| `ResourceNotFoundException` | 404 | Invalid user/product/order ID |
+| `InsufficientStockException` | 400 | Requested quantity exceeds stock |
+| `InvalidCouponException` | 400 | Invalid/expired/inactive coupon |
+| `InvalidStateTransitionException` | 422 | Illegal order-state transition |
+| Validation errors | 400 | Invalid request payload |
+| Access denied | 403 | CUSTOMER calling an ADMIN-only endpoint |
+
+## Postman Testing
+
+The project includes a Postman collection and environment in the `postman` directory.
+
+The collection covers both Phase 1 and Phase 2 requirements, including:
+
+### Authentication
+
+- Register
+- Login as customer
+- Login as admin
+- Bearer-token authorization
+- CUSTOMER attempting an ADMIN-only endpoint
+
+### Product Catalog
+
+- Catalog pagination
+- Category filtering
+- Minimum price
+- Maximum price
+- Price range
+- In-stock filtering
+- Multiple filters
+- Out-of-bounds page
+- Price sorting
+- Multi-field sorting
+- Product creation
+- Product update
+- Product deletion
+- Cache read / cache eviction checks
+
+### Orders
+
+- Order creation
+- Order retrieval
+- My orders
+- Insufficient stock
+- Invalid quantity
+- Invalid user/product
+- Coupon order
+- Order payment
+- Shipping
+- Illegal status transition
+- Cancellation
+- Inventory restoration
+
+### Coupons
+
+- Admin coupon creation
+- Valid coupon application
+- Invalid coupon
+- Expired coupon
+- Inactive coupon
+
+### Audit
+
+- Admin audit-log retrieval
+- Audit pagination and sorting
+- CUSTOMER audit-log access returning 403
+
+Import the environment and collection, start the application, set the admin/customer passwords in the environment, and run the requests in order.
+
+## GitHub Repository
+
+Repository:
+
+```text
 https://github.com/viveknred/ecommerce-inventory
+```
 
+## Git Hygiene
 
+Phase 2 changes should be committed on top of Phase 1 using descriptive commit messages, for example:
 
-\## Running the Project
+```text
+feat: add JWT authentication
+feat: implement RBAC
+feat: add coupon engine
+feat: implement product caching
+feat: add audit logging
+chore: update README and Postman collection
+```
 
+Do not commit:
 
+- `build/`
+- IDE configuration files
+- local database credentials
+- JWT secrets
+- other local secrets
 
-Clone the repository:
+## Running the Project from GitHub
 
-
+Clone:
 
 ```cmd
-
 git clone https://github.com/viveknred/ecommerce-inventory.git
-
 ```
-
-
 
 Enter the project directory:
 
-
-
 ```cmd
-
 cd ecommerce-inventory
-
 ```
 
-
-
-Configure MySQL credentials in:
-
-
+Configure MySQL in:
 
 ```text
-
 src/main/resources/application.properties
-
 ```
-
-
 
 Build:
 
-
-
 ```cmd
-
 gradlew.bat clean build
-
 ```
-
-
 
 Run:
 
-
-
 ```cmd
-
 gradlew.bat bootRun
-
 ```
 
-
-
-The application will be available at:
-
-
+Application:
 
 ```text
-
 http://localhost:8080
-
 ```
 
+Swagger:
 
+```text
+http://localhost:8080/swagger-ui/index.html
+```
 
-\## Testing Summary
+## Submission Checklist
 
+### Assignment 1
 
+- [x] MySQL database
+- [x] Users
+- [x] Products and indexed category
+- [x] Optimistic locking with `@Version`
+- [x] Product filtering
+- [x] Pagination
+- [x] Sorting
+- [x] Transactional order creation
+- [x] Stock deduction and rollback
+- [x] Order state machine
+- [x] Cancellation stock restoration
+- [x] Global exception handling
+- [x] Postman collection
+- [x] README
 
-The application has been tested for:
+### Assignment 2
 
-
-
-\- User operations
-
-\- Product CRUD operations
-
-\- Product filtering
-
-\- Price range filtering
-
-\- Inventory filtering
-
-\- Pagination
-
-\- Sorting
-
-\- Order creation
-
-\- Inventory deduction
-
-\- Order payment
-
-\- Order shipping
-
-\- Order cancellation
-
-\- Inventory restoration
-
-\- Insufficient stock handling
-
-\- Invalid quantity validation
-
-\- Invalid user handling
-
-\- Invalid product handling
-
-\- Invalid order state transitions
-
-
+- [x] JWT authentication
+- [x] BCrypt password hashing
+- [x] Role-based access control
+- [x] Coupon creation and validation
+- [x] Coupon integration with orders
+- [x] Spring Cache product caching
+- [x] Cache eviction on product changes
+- [x] Spring AOP audit logging
+- [x] Audit-log database table
+- [x] Admin-only paginated audit-log endpoint
+- [x] Phase 2 Postman requests
+- [x] README credentials/JWT instructions
 

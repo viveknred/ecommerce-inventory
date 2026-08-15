@@ -5,9 +5,9 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 import jakarta.servlet.http.HttpServletRequest;
-import jakarta.validation.ConstraintViolationException;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -55,6 +55,19 @@ public class GlobalExceptionHandler {
         );
     }
 
+    @ExceptionHandler(InvalidCouponException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public Map<String, Object> handleInvalidCoupon(
+            InvalidCouponException ex,
+            HttpServletRequest request) {
+
+        return buildResponse(
+                HttpStatus.BAD_REQUEST,
+                ex.getMessage(),
+                request.getRequestURI()
+        );
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public Map<String, Object> handleIllegalArgument(
@@ -70,7 +83,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public Map<String, Object> handleValidationException(
+    public Map<String, Object> handleValidation(
             MethodArgumentNotValidException ex,
             HttpServletRequest request) {
 
@@ -78,7 +91,10 @@ public class GlobalExceptionHandler {
                 .getFieldErrors()
                 .stream()
                 .findFirst()
-                .map(error -> error.getDefaultMessage())
+                .map(error ->
+                        error.getField()
+                                + ": "
+                                + error.getDefaultMessage())
                 .orElse("Validation failed");
 
         return buildResponse(
@@ -88,21 +104,15 @@ public class GlobalExceptionHandler {
         );
     }
 
-    @ExceptionHandler(ConstraintViolationException.class)
-    @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public Map<String, Object> handleConstraintViolation(
-            ConstraintViolationException ex,
+    @ExceptionHandler(AccessDeniedException.class)
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    public Map<String, Object> handleAccessDenied(
+            AccessDeniedException ex,
             HttpServletRequest request) {
 
-        String message = ex.getConstraintViolations()
-                .stream()
-                .findFirst()
-                .map(violation -> violation.getMessage())
-                .orElse("Validation failed");
-
         return buildResponse(
-                HttpStatus.BAD_REQUEST,
-                message,
+                HttpStatus.FORBIDDEN,
+                "Access Denied",
                 request.getRequestURI()
         );
     }
@@ -113,9 +123,11 @@ public class GlobalExceptionHandler {
             Exception ex,
             HttpServletRequest request) {
 
+        ex.printStackTrace();
+
         return buildResponse(
                 HttpStatus.INTERNAL_SERVER_ERROR,
-                "Internal server error",
+                ex.getMessage(),
                 request.getRequestURI()
         );
     }
