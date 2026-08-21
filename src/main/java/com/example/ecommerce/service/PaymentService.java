@@ -1,5 +1,7 @@
 package com.example.ecommerce.service;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
@@ -21,13 +23,16 @@ public class PaymentService {
 
     private final PaymentRepository paymentRepository;
     private final OrderRepository orderRepository;
+    private final AuditService auditService;
 
     public PaymentService(
             PaymentRepository paymentRepository,
-            OrderRepository orderRepository) {
+            OrderRepository orderRepository,
+            AuditService auditService) {
 
         this.paymentRepository = paymentRepository;
         this.orderRepository = orderRepository;
+        this.auditService = auditService;
     }
 
     @Transactional
@@ -35,22 +40,31 @@ public class PaymentService {
             PaymentRequest request,
             String email) {
 
-        Order order = orderRepository.findById(request.getOrderId())
+        Order order = orderRepository
+                .findById(request.getOrderId())
                 .orElseThrow(() ->
                         new ResourceNotFoundException(
                                 "Order not found"));
 
-        if (!order.getUser().getEmail().equals(email)) {
+        if (!order.getUser()
+                .getEmail()
+                .equals(email)) {
+
             throw new ResourceNotFoundException(
                     "Order not found");
         }
 
-        if (order.getStatus() != OrderStatus.PENDING) {
+        if (order.getStatus()
+                != OrderStatus.PENDING) {
+
             throw new InvalidStateTransitionException(
                     "Payment can only be processed for a PENDING order");
         }
 
-        if (paymentRepository.findByOrderId(order.getId()).isPresent()) {
+        if (paymentRepository
+                .findByOrderId(order.getId())
+                .isPresent()) {
+
             throw new InvalidStateTransitionException(
                     "Payment already exists for this order");
         }
@@ -65,9 +79,45 @@ public class PaymentService {
         );
 
         order.setStatus(OrderStatus.PAID);
+
         orderRepository.save(order);
 
-        Payment savedPayment = paymentRepository.save(payment);
+        Payment savedPayment =
+                paymentRepository.save(payment);
+
+        Map<String, Object> details =
+                new HashMap<>();
+
+        details.put(
+                "paymentId",
+                savedPayment.getId()
+        );
+
+        details.put(
+                "orderId",
+                order.getId()
+        );
+
+        details.put(
+                "amount",
+                savedPayment.getAmount()
+        );
+
+        details.put(
+                "status",
+                savedPayment.getStatus()
+        );
+
+        details.put(
+                "transactionId",
+                savedPayment.getTransactionId()
+        );
+
+        auditService.log(
+                "Payment",
+                "PAYMENT_SUCCESS",
+                details
+        );
 
         return toResponse(savedPayment);
     }
@@ -94,7 +144,8 @@ public class PaymentService {
         return toResponse(payment);
     }
 
-    private PaymentResponse toResponse(Payment payment) {
+    private PaymentResponse toResponse(
+            Payment payment) {
 
         return new PaymentResponse(
                 payment.getId(),

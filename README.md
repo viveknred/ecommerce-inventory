@@ -14,6 +14,11 @@ This project implements the requirements from both the E-Commerce Inventory & Or
 - JWT
 - Spring Cache (in-memory cache)
 - Spring AOP / AspectJ
+- Spring for Apache Kafka
+- Apache Kafka (local broker)
+- Spring Boot Actuator
+- Micrometer
+- Spring Scheduling
 - MySQL 8
 - Gradle
 - Swagger / OpenAPI
@@ -26,6 +31,7 @@ Before running the application, install:
 
 - Java 21
 - MySQL 8.0 or later
+- Apache Kafka 4.x (local broker)
 - Git
 - Postman
 - Spring Tool Suite (STS), IntelliJ IDEA, or another Java IDE
@@ -93,12 +99,16 @@ CHANGE COLUMN created_at order_date DATETIME NOT NULL;
 ```text
 src/main/java/com/example/ecommerce/
 ├── audit/
-│   ├── AuditAction.java
-│   └── AuditAspect.java
+│   └── AuditContext.java
 │
 ├── config/
+│   ├── AdminSeeder.java
 │   ├── CacheConfig.java
+│   ├── KafkaConfig.java
+│   ├── KafkaHealthIndicator.java
 │   ├── OpenApiConfig.java
+│   ├── PasswordConfig.java
+│   ├── SchedulingConfig.java
 │   └── SecurityConfig.java
 │
 ├── controller/
@@ -137,6 +147,13 @@ src/main/java/com/example/ecommerce/
 │   ├── Role.java
 │   └── User.java
 │
+├── event/
+│   ├── OrderCreatedEvent.java
+│   ├── OrderCreatedEventPublisher.java
+│   ├── OrderCreatedKafkaPublisher.java
+│   ├── OrderCreatedKafkaListener.java
+│   └── OrderCreatedItem.java
+│
 ├── exception/
 │   ├── GlobalExceptionHandler.java
 │   ├── InsufficientStockException.java
@@ -159,11 +176,13 @@ src/main/java/com/example/ecommerce/
 │   └── JwtService.java
 │
 ├── service/
+│   ├── AuditService.java
 │   ├── AuthService.java
 │   ├── CouponService.java
 │   ├── OrderService.java
 │   ├── PaymentService.java
 │   ├── ProductService.java
+│   ├── ScheduledTaskService.java
 │   └── UserService.java
 │
 └── specification/
@@ -568,7 +587,7 @@ FAILED
 
 ## Audit Logging
 
-Spring AOP is used to record audit events automatically.
+The audit system records business state changes through the centralized `AuditService`.
 
 The audit log stores:
 
@@ -585,6 +604,9 @@ Tracked events include:
 - Stock reduction during order creation
 - Inventory restoration during cancellation
 - Product inventory updates
+- Product creation, update, and deletion events
+- Coupon creation and coupon application
+- Successful payment events
 
 Admin audit endpoint:
 
@@ -683,6 +705,161 @@ The collection covers both Phase 1 and Phase 2 requirements, including:
 
 Import the environment and collection, start the application, set the admin/customer passwords in the environment, and run the requests in order.
 
+### Phase 3 - Kafka & Observability
+
+The collection also includes:
+
+- `POST /api/v1/orders` to trigger the post-commit Kafka `OrderCreatedEvent`
+- `GET /actuator/health`
+- `GET /actuator/health/liveness`
+- `GET /actuator/health/readiness`
+- `GET /actuator/metrics`
+- `GET /actuator/metrics/orders.revenue.total`
+
+Kafka itself is not accessed through Postman. Start the local Kafka broker separately and observe the asynchronous listener processing in the Spring Boot console.
+
+## Phase 3 - Kafka Event Messaging, Background Scheduling & Observability
+
+Phase 3 extends the existing Phase 1 and Phase 2 application with asynchronous event processing, scheduled background jobs, and production observability. The Docker / Docker Compose module is intentionally not implemented.
+
+### Kafka Configuration
+
+The project uses Apache Kafka instead of RabbitMQ.
+
+Kafka broker:
+
+```text
+localhost:9092
+```
+
+Kafka topic:
+
+```text
+order-created
+```
+
+The local Kafka broker must be running before the Spring Boot application is started.
+
+Example Windows Kafka startup:
+
+```cmd
+cd /d D:\kafka\kafka
+bin\windows\kafka-server-start.bat config\server.properties
+```
+
+Verify the topic:
+
+```cmd
+bin\windows\kafka-topics.bat --list --bootstrap-server 127.0.0.1:9092
+```
+
+Expected topic:
+
+```text
+order-created
+```
+
+### Asynchronous OrderCreatedEvent
+
+When `POST /api/v1/orders` completes successfully:
+
+1. The order, order items, and inventory changes are processed in the existing database transaction.
+2. An `OrderCreatedEvent` is created containing the order ID, user email, and line items.
+3. The Spring transaction event is published to Kafka only after the database transaction commits.
+4. The Kafka listener receives the message asynchronously.
+5. The listener logs processing start.
+6. The listener waits 2 seconds to simulate receipt/notification processing.
+7. The listener logs processing completion.
+
+Kafka processing therefore runs outside the main HTTP request/response work.
+
+### Scheduled Background Jobs
+
+The application enables Spring scheduling through `@EnableScheduling`.
+
+#### Hourly coupon expiry
+
+Cron:
+
+```text
+0 0 * * * *
+```
+
+The job finds active coupons whose expiration date is before the current timestamp and marks them inactive.
+
+#### Daily low-stock scan
+
+Cron:
+
+```text
+0 0 0 * * *
+```
+
+The job finds products with:
+
+```text
+stock_quantity < 5
+```
+
+and creates a low-stock alert audit record for administrators.
+
+### Actuator and Micrometer
+
+The application exposes:
+
+```text
+http://localhost:8080/actuator/health
+http://localhost:8080/actuator/metrics
+```
+
+The readiness and liveness health groups are also enabled:
+
+```text
+http://localhost:8080/actuator/health/liveness
+http://localhost:8080/actuator/health/readiness
+```
+
+### Custom Kafka Health Check
+
+A custom `KafkaHealthIndicator` checks whether the Kafka broker and configured `order-created` topic are reachable.
+
+The result is included in:
+
+```text
+/actuator/health
+```
+
+### Revenue Metric
+
+The application registers the Micrometer counter:
+
+```text
+orders.revenue.total
+```
+
+View it at:
+
+```text
+http://localhost:8080/actuator/metrics/orders.revenue.total
+```
+
+The counter increases by the total amount of each successfully committed order.
+
+### Phase 3 Postman Requests
+
+The Postman collection includes:
+
+- `GET /actuator/health`
+- `GET /actuator/health/liveness`
+- `GET /actuator/health/readiness`
+- `GET /actuator/metrics`
+- `GET /actuator/metrics/orders.revenue.total`
+- `POST /api/v1/orders` for triggering the Kafka `OrderCreatedEvent` flow
+
+### Docker
+
+Docker / Docker Compose is intentionally not implemented.
+
 ## GitHub Repository
 
 Repository:
@@ -701,6 +878,9 @@ feat: implement RBAC
 feat: add coupon engine
 feat: implement product caching
 feat: add audit logging
+feat: add kafka order events
+feat: add scheduled background jobs
+feat: add actuator observability
 chore: update README and Postman collection
 ```
 
@@ -789,4 +969,23 @@ http://localhost:8080/swagger-ui/index.html
 - [x] Admin-only paginated audit-log endpoint
 - [x] Phase 2 Postman requests
 - [x] README credentials/JWT instructions
+
+### Assignment 3
+
+- [x] Spring for Apache Kafka integration
+- [x] OrderCreatedEvent DTO
+- [x] Publish OrderCreatedEvent after transaction commit
+- [x] Asynchronous Kafka listener
+- [x] 2-second receipt/notification simulation
+- [x] Hourly coupon-expiration scheduler
+- [x] Daily low-stock scheduler
+- [x] Actuator health endpoint
+- [x] Actuator metrics endpoint
+- [x] Liveness/readiness health groups enabled
+- [x] Custom Kafka HealthIndicator
+- [x] `orders.revenue.total` Micrometer counter
+- [x] Phase 3 Postman requests
+- [x] Phase 3 README documentation
+- [ ] Dockerfile
+- [ ] docker-compose.yml
 

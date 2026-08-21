@@ -18,6 +18,9 @@ public class AuditLog {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(name = "operation_id", nullable = false)
+    private String operationId;
+
     @Column(name = "entity_name", nullable = false)
     private String entityName;
 
@@ -45,6 +48,14 @@ public class AuditLog {
 
     public Long getId() {
         return id;
+    }
+
+    public String getOperationId() {
+        return operationId;
+    }
+
+    public void setOperationId(String operationId) {
+        this.operationId = operationId;
     }
 
     public String getEntityName() {

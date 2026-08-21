@@ -1,8 +1,8 @@
 {
   "info": {
     "_postman_id": "ecommerce-inventory-assignment-phase1-phase2",
-    "name": "E-Commerce Inventory & Order Fulfillment - Assignments 1 and 2",
-    "description": "Complete Postman validation collection for Assignment 1 and Assignment 2, including authentication, RBAC, dynamic product filtering, orders, coupons, payments, caching-related catalog tests, and admin audit-log access.",
+    "name": "E-Commerce Inventory & Order Fulfillment - Assignments 1, 2 and 3",
+    "description": "Complete Postman validation collection for Assignments 1, 2 and 3, including authentication, RBAC, dynamic product filtering, orders, coupons, payments, caching-related catalog tests, admin audit-log access, Kafka-triggering order flow, Actuator health, liveness/readiness probes, general metrics, and the orders.revenue.total metric.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -74,6 +74,11 @@
     {
       "key": "customerToken",
       "value": ""
+    },
+    {
+      "key": "phase3OrderId",
+      "value": "",
+      "type": "string"
     }
   ],
   "item": [
@@ -1532,6 +1537,158 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('Customer is forbidden from audit logs', function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "7. Phase 3 - Kafka, Scheduling & Observability",
+      "item": [
+        {
+          "name": "Create Order - Kafka Event Trigger",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/orders",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"items\": [\n    {\n      \"productId\": \"{{productId}}\",\n      \"quantity\": 1\n    }\n  ]\n}"
+            },
+            "description": "Creates a successful order. After the database transaction commits, the application publishes an OrderCreatedEvent to Kafka topic \"order-created\". The asynchronous Kafka listener then simulates receipt/notification processing for 2 seconds. Observe the Spring Boot console and the Kafka broker while running this request."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Order created successfully', function () { pm.response.to.have.status(201); });",
+                  "const json = pm.response.json();",
+                  "if (json.id) pm.environment.set('phase3OrderId', json.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Actuator Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/actuator/health",
+            "description": "Checks overall application health including the custom Kafka health indicator."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Health endpoint returns 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Application health is UP', function () { pm.expect(pm.response.json().status).to.eql('UP'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Actuator Liveness",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/actuator/health/liveness",
+            "description": "Checks the application liveness health group."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Liveness endpoint returns 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Liveness status is UP', function () { pm.expect(pm.response.json().status).to.eql('UP'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Actuator Readiness",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/actuator/health/readiness",
+            "description": "Checks the application readiness health group."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Readiness endpoint returns 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Readiness status is UP', function () { pm.expect(pm.response.json().status).to.eql('UP'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Actuator Metrics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/actuator/metrics",
+            "description": "Returns the available Micrometer metric names."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Metrics endpoint returns 200', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Revenue Metric",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/actuator/metrics/orders.revenue.total",
+            "description": "Checks the Micrometer counter that accumulates the total value of successfully committed orders."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Revenue metric returns 200', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test('Correct metric name', function () { pm.expect(json.name).to.eql('orders.revenue.total'); });",
+                  "pm.test('Revenue measurement is present', function () { pm.expect(json.measurements).to.be.an('array').that.is.not.empty; });"
                 ]
               }
             }
