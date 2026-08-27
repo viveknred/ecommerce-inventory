@@ -44,6 +44,15 @@ public class SecurityConfig {
                                 "/api/v1/auth/login"
                         ).permitAll()
 
+                        // Phase 4, Module 4: uploaded images are public static
+                        // content. They are served by the resource handler in
+                        // WebConfig, not by a controller, so they need their own
+                        // rule; without it every <img src> would 401.
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/uploads/**"
+                        ).permitAll()
+
                         .requestMatchers(
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",

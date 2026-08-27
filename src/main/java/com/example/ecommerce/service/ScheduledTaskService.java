@@ -31,7 +31,7 @@ public class ScheduledTaskService {
         this.auditService = auditService;
     }
 
-    @Scheduled(cron = "0 0 * * * *")
+    @Scheduled(cron = "45 * * * * *")
     @Transactional
     public void expireCoupons() {
 
@@ -86,7 +86,7 @@ public class ScheduledTaskService {
         }
     }
 
-    @Scheduled(cron = "0 0 0 * * *")
+    @Scheduled(cron = "45 * * * * *")
     @Transactional(readOnly = true)
     public void checkLowStock() {
 

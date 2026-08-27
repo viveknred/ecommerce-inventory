@@ -217,6 +217,58 @@ public class AuditService {
                         value(details, "transactionId")
                 );
 
+            case "VENDOR_CREATED":
+
+                return String.format(
+                        "Vendor #%s (%s) was onboarded with support email %s. "
+                                + "Owner account: %s.",
+                        value(details, "vendorId"),
+                        value(details, "businessName"),
+                        value(details, "supportEmail"),
+                        details.get("ownerEmail") == null
+                                ? "none linked"
+                                : value(details, "ownerEmail")
+                );
+
+            case "VENDOR_VERIFIED":
+
+                return String.format(
+                        "Vendor #%s (%s) verification status changed "
+                                + "from %s to %s.",
+                        value(details, "vendorId"),
+                        value(details, "businessName"),
+                        value(details, "oldVerified"),
+                        value(details, "newVerified")
+                );
+
+            case "REVIEW_CREATED":
+
+                return String.format(
+                        "Review #%s was submitted by %s for product #%s (%s) "
+                                + "with a rating of %s out of 5. The product "
+                                + "average is now %s and the vendor average "
+                                + "is %s.",
+                        value(details, "reviewId"),
+                        value(details, "email"),
+                        value(details, "productId"),
+                        value(details, "productName"),
+                        value(details, "rating"),
+                        value(details, "productRatingAverage"),
+                        value(details, "vendorRatingAverage")
+                );
+
+            case "MEDIA_UPLOADED":
+
+                return String.format(
+                        "Image %s (%s, %s) was uploaded to the %s folder "
+                                + "and is served at %s.",
+                        value(details, "fileName"),
+                        value(details, "contentType"),
+                        formatBytes(details.get("sizeBytes")),
+                        value(details, "category"),
+                        value(details, "url")
+                );
+
             default:
 
                 return String.format(
@@ -243,6 +295,39 @@ public class AuditService {
         if (value instanceof Number number) {
             return String.valueOf(
                     Math.abs(number.longValue())
+            );
+        }
+
+        return value == null
+                ? "N/A"
+                : String.valueOf(value);
+    }
+
+    /**
+     * Renders an upload size in the nearest sensible unit for the audit trail.
+     */
+    private String formatBytes(Object value) {
+
+        if (value instanceof Number number) {
+
+            long bytes = number.longValue();
+
+            if (bytes < 1024) {
+                return bytes + " B";
+            }
+
+            if (bytes < 1024 * 1024) {
+                return String.format(
+                        Locale.US,
+                        "%.1f KB",
+                        bytes / 1024.0
+                );
+            }
+
+            return String.format(
+                    Locale.US,
+                    "%.2f MB",
+                    bytes / (1024.0 * 1024.0)
             );
         }
 

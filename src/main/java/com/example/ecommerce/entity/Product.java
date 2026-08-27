@@ -8,6 +8,9 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import jakarta.validation.constraints.DecimalMin;
@@ -19,7 +22,8 @@ import jakarta.validation.constraints.NotNull;
 @Table(
     name = "products",
     indexes = {
-        @Index(name = "idx_product_category", columnList = "category")
+        @Index(name = "idx_product_category", columnList = "category"),
+        @Index(name = "idx_products_vendor", columnList = "vendor_id")
     }
 )
 public class Product {
@@ -46,11 +50,46 @@ public class Product {
     @Column(name = "stock_quantity", nullable = false)
     private Integer stock;
 
+    /**
+     * Phase 4: owning vendor in the marketplace.
+     * Nullable so pre-Phase-4 catalogue rows remain valid.
+     */
+    @ManyToOne
+    @JoinColumn(name = "vendor_id")
+    private Vendor vendor;
+
+    /**
+     * Phase 4: public URL of the product image, produced by the media endpoint.
+     */
+    @Column(name = "image_url")
+    private String imageUrl;
+
+    /**
+     * Phase 4: denormalised rating, recalculated whenever a review is added.
+     */
+    @Column(name = "rating_average", nullable = false)
+    private Double ratingAverage;
+
+    @Column(name = "review_count", nullable = false)
+    private Integer reviewCount;
+
     @Version
     @Column(nullable = false)
     private Long version;
 
     public Product() {
+    }
+
+    @PrePersist
+    public void prePersist() {
+
+        if (ratingAverage == null) {
+            ratingAverage = 0.0;
+        }
+
+        if (reviewCount == null) {
+            reviewCount = 0;
+        }
     }
 
     public Long getId() {
@@ -73,6 +112,22 @@ public class Product {
         return stock;
     }
 
+    public Vendor getVendor() {
+        return vendor;
+    }
+
+    public String getImageUrl() {
+        return imageUrl;
+    }
+
+    public Double getRatingAverage() {
+        return ratingAverage;
+    }
+
+    public Integer getReviewCount() {
+        return reviewCount;
+    }
+
     public Long getVersion() {
         return version;
     }
@@ -91,5 +146,21 @@ public class Product {
 
     public void setStock(Integer stock) {
         this.stock = stock;
+    }
+
+    public void setVendor(Vendor vendor) {
+        this.vendor = vendor;
+    }
+
+    public void setImageUrl(String imageUrl) {
+        this.imageUrl = imageUrl;
+    }
+
+    public void setRatingAverage(Double ratingAverage) {
+        this.ratingAverage = ratingAverage;
+    }
+
+    public void setReviewCount(Integer reviewCount) {
+        this.reviewCount = reviewCount;
     }
 }

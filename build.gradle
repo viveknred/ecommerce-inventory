@@ -34,6 +34,18 @@ dependencies {
     runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.13.0'
     runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.13.0'
 
+    // Phase 4, Module 1: database migrations.
+    //
+    // Spring Boot 4 split autoconfiguration out of spring-boot-autoconfigure
+    // into one module per technology, so flyway-core on its own is inert: the
+    // spring.flyway.* properties are read by the autoconfiguration in
+    // spring-boot-flyway, and without it Flyway never runs and the schema is
+    // never created. flyway-mysql supplies the MySQL dialect support that
+    // flyway-core has not bundled since Flyway 10.
+    implementation 'org.springframework.boot:spring-boot-flyway'
+    implementation 'org.flywaydb:flyway-core'
+    implementation 'org.flywaydb:flyway-mysql'
+
     compileOnly 'org.projectlombok:lombok'
     runtimeOnly 'com.mysql:mysql-connector-j'
     annotationProcessor 'org.projectlombok:lombok'

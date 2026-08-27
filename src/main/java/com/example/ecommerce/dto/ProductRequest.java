@@ -23,6 +23,18 @@ public class ProductRequest {
     @Min(0)
     private Integer stock;
 
+    /**
+     * Phase 4: owning vendor.
+     * Required for ROLE_ADMIN. Ignored for ROLE_VENDOR, whose products are
+     * always forced onto their own vendor id.
+     */
+    private Long vendorId;
+
+    /**
+     * Optional. Public URL returned by POST /api/v1/media/upload.
+     */
+    private String imageUrl;
+
     public ProductRequest() {
     }
 
@@ -56,5 +68,21 @@ public class ProductRequest {
 
     public void setStock(Integer stock) {
         this.stock = stock;
+    }
+
+    public Long getVendorId() {
+        return vendorId;
+    }
+
+    public void setVendorId(Long vendorId) {
+        this.vendorId = vendorId;
+    }
+
+    public String getImageUrl() {
+        return imageUrl;
+    }
+
+    public void setImageUrl(String imageUrl) {
+        this.imageUrl = imageUrl;
     }
 }

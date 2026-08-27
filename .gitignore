@@ -23,6 +23,11 @@ bin/
 !**/src/main/**/bin/
 !**/src/test/**/bin/
 
+# Eclipse / STS workspace metadata, which lands inside the project when the IDE
+# workspace is opened here. Local IDE state, ~1.6 MB, not source.
+.metadata/
+**/.metadata/
+
 # IntelliJ IDEA
 .idea/
 *.iws
@@ -68,3 +73,10 @@ Thumbs.db
 
 # Build / IDE metadata
 *.launch
+
+# Phase 4: locally uploaded media (product images, vendor logos, review photos)
+uploads/
+
+# Phase 4: the >2MB Postman upload fixture is generated, not committed
+# (run postman/sample-files/generate-samples.py)
+postman/sample-files/oversized-image.png

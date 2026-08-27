@@ -1,8 +1,8 @@
 {
   "info": {
-    "_postman_id": "ecommerce-inventory-assignment-phase1-phase2",
-    "name": "E-Commerce Inventory & Order Fulfillment - Assignments 1, 2 and 3",
-    "description": "Complete Postman validation collection for Assignments 1, 2 and 3, including authentication, RBAC, dynamic product filtering, orders, coupons, payments, caching-related catalog tests, admin audit-log access, Kafka-triggering order flow, Actuator health, liveness/readiness probes, general metrics, and the orders.revenue.total metric.",
+    "_postman_id": "ecommerce-inventory-assignment-phase1-phase4",
+    "name": "E-Commerce Inventory & Order Fulfillment - Assignments 1, 2, 3 and 4",
+    "description": "Complete Postman validation collection for Assignments 1 to 4. Folders 1 to 7 cover authentication, RBAC, dynamic product filtering, orders, coupons, payments, caching, audit logs, the Kafka order flow and Actuator observability. Folders 8 to 10 cover the Phase 4 multi-vendor marketplace: vendor onboarding and per-vendor product ownership, verified-purchase reviews with the rating recalculation engine, and multipart image upload with its rejection cases.\n\nOrder matters for the Phase 4 folders. Run folder 1 to obtain tokens, then 8, then 10, then 9 (folder 10 populates the image URL that the review in folder 9 attaches). Running 8 then 9 then 10 also works; the review simply carries no photo.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -77,6 +77,76 @@
     },
     {
       "key": "phase3OrderId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "vendorId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "otherVendorId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "vendorBusinessName",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "vendorOwnerEmail",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "vendorOwnerPassword",
+      "value": "Vendor@12345",
+      "type": "string"
+    },
+    {
+      "key": "vendorToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "vendorProductId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "unpurchasedProductId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "reviewOrderId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "reviewId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "uploadedImageUrl",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "uploadedFileName",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "uploadedLogoUrl",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "catalogVendorId",
       "value": "",
       "type": "string"
     }
@@ -570,6 +640,47 @@
           ]
         },
         {
+          "name": "Create Catalog Vendor - Admin",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/vendors",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"businessName\": \"Catalog Test Vendor {{$timestamp}}\",\n  \"supportEmail\": \"support@catalog-test.example.com\"\n}"
+            },
+            "description": "Phase 4 made every product belong to a vendor, so the product writes below need one to point at. Creating it here keeps this folder runnable on its own without depending on folder 8."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Catalog vendor created', function () { pm.response.to.have.status(201); });",
+                  "const json = pm.response.json();",
+                  "if (json.id) pm.environment.set('catalogVendorId', json.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "Create Product - Admin",
           "request": {
             "method": "POST",
@@ -592,8 +703,9 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Postman Cache/Audit Product\",\n  \"category\": \"Electronics\",\n  \"price\": 2499.0,\n  \"stock\": 20\n}"
-            }
+              "raw": "{\n  \"name\": \"Postman Cache/Audit Product\",\n  \"category\": \"Electronics\",\n  \"price\": 2499.0,\n  \"stock\": 20,\n  \"vendorId\": \"{{catalogVendorId}}\"\n}"
+            },
+            "description": "vendorId became mandatory for administrators in Phase 4: in a marketplace every product has a seller."
           },
           "event": [
             {
@@ -632,7 +744,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Postman Cache/Audit Product Updated\",\n  \"category\": \"Electronics\",\n  \"price\": 2599.0,\n  \"stock\": 25\n}"
+              "raw": "{\n  \"name\": \"Postman Cache/Audit Product Updated\",\n  \"category\": \"Electronics\",\n  \"price\": 2799.0,\n  \"stock\": 15,\n  \"vendorId\": \"{{catalogVendorId}}\"\n}"
             }
           },
           "event": [
@@ -1689,6 +1801,1863 @@
                   "const json = pm.response.json();",
                   "pm.test('Correct metric name', function () { pm.expect(json.name).to.eql('orders.revenue.total'); });",
                   "pm.test('Revenue measurement is present', function () { pm.expect(json.measurements).to.be.an('array').that.is.not.empty; });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "8. Phase 4 - Vendors & Marketplace",
+      "description": "Assignment Phase 4, Module 2. Run folder 1 first so that adminToken and customerToken are populated.\n\nThis folder onboards two vendors, promotes a freshly registered account to ROLE_VENDOR by linking it as the owner of the first vendor, and then proves the ownership boundary: a vendor may create and edit products under its own vendor id and nothing else. The requests are order-dependent - run them top to bottom, or use Run Folder.",
+      "item": [
+        {
+          "name": "Resolve Customer User Id - Admin",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/users",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "GET /api/v1/users is ROLE_ADMIN only as of Phase 4. It is used here to look up the numeric id of {{customerEmail}} and store it in userId, because POST /api/v1/orders requires the body userId to match the authenticated caller."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Admin can list users', function () { pm.response.to.have.status(200); });",
+                  "const users = pm.response.json();",
+                  "const customer = users.find(function (u) { return u.email === pm.environment.get('customerEmail'); });",
+                  "if (customer) pm.environment.set('userId', customer.id);",
+                  "pm.test('Customer account resolved', function () { pm.expect(customer, 'no user matching customerEmail').to.not.be.undefined; });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Register Vendor Owner",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/auth/register",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman Vendor Owner\",\n  \"email\": \"vendor.owner.{{$timestamp}}@example.com\",\n  \"password\": \"{{vendorOwnerPassword}}\"\n}"
+            },
+            "description": "Self-service signup always creates a ROLE_CUSTOMER account. The next request promotes it to ROLE_VENDOR by naming it as a vendor owner. The email is timestamped so the whole folder stays re-runnable."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Vendor owner registered', function () { pm.response.to.have.status(201); });",
+                  "const json = pm.response.json();",
+                  "pm.environment.set('vendorOwnerEmail', json.email);",
+                  "pm.test('Registers as a customer before promotion', function () { pm.expect(json.role).to.eql('CUSTOMER'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Vendor - Admin",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/vendors",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"businessName\": \"Postman Traders {{$timestamp}}\",\n  \"supportEmail\": \"support@postman-traders.example.com\",\n  \"ownerEmail\": \"{{vendorOwnerEmail}}\"\n}"
+            },
+            "description": "ROLE_ADMIN only. Passing ownerEmail links an existing account to the new vendor and promotes it to ROLE_VENDOR in the same transaction. ratingAverage starts at 0.0 and isVerified at false."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Vendor created', function () { pm.response.to.have.status(201); });",
+                  "const json = pm.response.json();",
+                  "pm.environment.set('vendorId', json.id);",
+                  "pm.environment.set('vendorBusinessName', json.businessName);",
+                  "pm.test('Owner linked', function () { pm.expect(json.ownerEmail).to.eql(pm.environment.get('vendorOwnerEmail')); });",
+                  "pm.test('Starts unverified with a zero rating', function () {",
+                  "    pm.expect(json.isVerified).to.eql(false);",
+                  "    pm.expect(json.ratingAverage).to.eql(0.0);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Second Vendor - Admin",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/vendors",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"businessName\": \"Rival Supply Co {{$timestamp}}\",\n  \"supportEmail\": \"support@rival-supply.example.com\"\n}"
+            },
+            "description": "A second vendor with no owner account. It exists so the cross-vendor authorization tests below have somewhere else to point at."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Second vendor created', function () { pm.response.to.have.status(201); });",
+                  "const json = pm.response.json();",
+                  "pm.environment.set('otherVendorId', json.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Vendor - Duplicate Business Name",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/vendors",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"businessName\": \"{{vendorBusinessName}}\",\n  \"supportEmail\": \"duplicate@postman-traders.example.com\"\n}"
+            },
+            "description": "business_name carries a unique constraint, so a repeat is rejected with 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Duplicate business name rejected', function () { pm.response.to.have.status(400); });",
+                  "pm.test('Error names the conflict', function () { pm.expect(pm.response.text()).to.include('already'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Vendor - Customer Forbidden",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/vendors",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"businessName\": \"Unauthorized Vendor {{$timestamp}}\",\n  \"supportEmail\": \"nope@example.com\"\n}"
+            },
+            "description": "Vendor onboarding is ROLE_ADMIN only."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Customer is forbidden', function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login - Vendor Owner",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{vendorOwnerEmail}}\",\n  \"password\": \"{{vendorOwnerPassword}}\"\n}"
+            },
+            "description": "A fresh token is required after the promotion: the JWT issued at registration still carries ROLE_CUSTOMER."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Login successful', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.environment.set('vendorToken', json.token);",
+                  "pm.test('Account was promoted to ROLE_VENDOR', function () { pm.expect(json.role).to.eql('VENDOR'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Verify Vendor - Admin",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/vendors/{{vendorId}}/verification?verified=true",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Flips the is_verified flag. ROLE_ADMIN only."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Vendor verified', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Flag flipped', function () { pm.expect(pm.response.json().isVerified).to.eql(true); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Verify Vendor - Vendor Forbidden",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/vendors/{{vendorId}}/verification?verified=true",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{vendorToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "A vendor cannot verify itself."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Vendor is forbidden', function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Vendors - Paginated",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/vendors?page=0&size=5&sort=businessName,asc",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Vendors listed', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test('Page envelope present', function () {",
+                  "    pm.expect(json).to.have.property('content');",
+                  "    pm.expect(json).to.have.property('totalElements');",
+                  "    pm.expect(json.size).to.eql(5);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Vendor By ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/vendors/{{vendorId}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Vendor returned', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Correct vendor', function () { pm.expect(String(pm.response.json().id)).to.eql(String(pm.environment.get('vendorId'))); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Vendor - Not Found",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/vendors/999999",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Unknown vendor is 404', function () { pm.response.to.have.status(404); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Product - Vendor Own Catalog",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/products",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{vendorToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Vendor Reviewable Widget {{$timestamp}}\",\n  \"category\": \"Accessories\",\n  \"price\": 1499.0,\n  \"stock\": 25\n}"
+            },
+            "description": "A ROLE_VENDOR caller never has to send vendorId: the server forces the product onto the caller's own vendor. This product is the subject of the review flow in folder 9."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Product created', function () { pm.response.to.have.status(201); });",
+                  "const json = pm.response.json();",
+                  "pm.environment.set('vendorProductId', json.id);",
+                  "pm.test('Pinned to the caller\\'s own vendor', function () {",
+                  "    pm.expect(String(json.vendorId)).to.eql(String(pm.environment.get('vendorId')));",
+                  "});",
+                  "pm.test('Rating columns initialised', function () {",
+                  "    pm.expect(json.ratingAverage).to.eql(0.0);",
+                  "    pm.expect(json.reviewCount).to.eql(0);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Product - Vendor Cross-Vendor Blocked",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/products",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{vendorToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Smuggled Product {{$timestamp}}\",\n  \"category\": \"Accessories\",\n  \"price\": 999.0,\n  \"stock\": 5,\n  \"vendorId\": \"{{otherVendorId}}\"\n}"
+            },
+            "description": "The core Module 2 rule: a vendor naming somebody else's vendor id is rejected with 403 rather than silently reassigned."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Cross-vendor write is forbidden', function () { pm.response.to.have.status(403); });",
+                  "pm.test('Message explains the boundary', function () { pm.expect(pm.response.text()).to.include('only manage products for vendor'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Product - Foreign Product Blocked",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/products/1",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{vendorToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Hijacked Seed Product\",\n  \"category\": \"Smartphone\",\n  \"price\": 1.0,\n  \"stock\": 0\n}"
+            },
+            "description": "Product 1 comes from the V3 seed migration and belongs to no vendor, so a vendor account cannot edit it."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Editing another vendor\\'s product is forbidden', function () { pm.response.to.have.status(403); });",
+                  "pm.test('Message identifies the product', function () { pm.expect(pm.response.text()).to.include('belongs to another vendor'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Product - Admin Missing vendorId",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/products",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Ownerless Product {{$timestamp}}\",\n  \"category\": \"Accessories\",\n  \"price\": 500.0,\n  \"stock\": 5\n}"
+            },
+            "description": "In a marketplace every product has a seller, so an admin must say which vendor a new product belongs to."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Missing vendorId is rejected', function () { pm.response.to.have.status(400); });",
+                  "pm.test('Message says what to do', function () { pm.expect(pm.response.text()).to.include('vendorId is required'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Product - Admin For Other Vendor",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/products",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Rival Unpurchased Product {{$timestamp}}\",\n  \"category\": \"Accessories\",\n  \"price\": 2100.0,\n  \"stock\": 10,\n  \"vendorId\": \"{{otherVendorId}}\"\n}"
+            },
+            "description": "An admin may write into any vendor's catalogue. Nobody buys this product, so folder 9 uses it as the un-purchased review target."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Product created', function () { pm.response.to.have.status(201); });",
+                  "const json = pm.response.json();",
+                  "pm.environment.set('unpurchasedProductId', json.id);",
+                  "pm.test('Assigned to the named vendor', function () {",
+                  "    pm.expect(String(json.vendorId)).to.eql(String(pm.environment.get('otherVendorId')));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Vendor Products - Paginated",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/vendors/{{vendorId}}/products?page=0&size=10&sort=name,asc",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "The Module 2 endpoint: a paginated catalogue scoped to one vendor."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Catalogue returned', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test('Page envelope present', function () { pm.expect(json).to.have.property('content'); });",
+                  "pm.test('Every row belongs to this vendor', function () {",
+                  "    const expected = String(pm.environment.get('vendorId'));",
+                  "    json.content.forEach(function (p) { pm.expect(String(p.vendorId)).to.eql(expected); });",
+                  "});",
+                  "pm.test('Includes the product created above', function () {",
+                  "    const ids = json.content.map(function (p) { return String(p.id); });",
+                  "    pm.expect(ids).to.include(String(pm.environment.get('vendorProductId')));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Vendor Products - Unknown Vendor",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/vendors/999999/products?page=0&size=10",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "An unknown vendor is a 404, not an empty page."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Unknown vendor is 404', function () { pm.response.to.have.status(404); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Filter Catalog By vendorId",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/products?vendorId={{vendorId}}&page=0&size=10",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "vendorId joins the Phase 2 Specification filters on the main catalogue route."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Filter applied', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test('Only this vendor is returned', function () {",
+                  "    const expected = String(pm.environment.get('vendorId'));",
+                  "    json.content.forEach(function (p) { pm.expect(String(p.vendorId)).to.eql(expected); });",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Customer Cannot Create Product",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/products",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Customer Product {{$timestamp}}\",\n  \"category\": \"Accessories\",\n  \"price\": 100.0,\n  \"stock\": 1,\n  \"vendorId\": \"{{vendorId}}\"\n}"
+            },
+            "description": "Product writes are ROLE_VENDOR or ROLE_ADMIN only."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Customer is forbidden', function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "9. Phase 4 - Reviews & Rating Engine",
+      "description": "Assignment Phase 4, Module 3. Run folder 8 first: this folder reviews the product created there.\n\nThe sequence deliberately walks the whole eligibility gate. A review is attempted while the order is still PENDING (rejected), the order is then paid, and the same review is attempted again (accepted). After the accepted review, the aggregates on both the product and its parent vendor are re-read to confirm the rating engine recalculated them.",
+      "item": [
+        {
+          "name": "Create Order For Review Flow",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/orders",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"items\": [\n    {\n      \"productId\": \"{{vendorProductId}}\",\n      \"quantity\": 1\n    }\n  ]\n}"
+            },
+            "description": "The customer buys the vendor's product. The order starts PENDING, which does not yet qualify as a completed purchase."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Order created', function () { pm.response.to.have.status(201); });",
+                  "const json = pm.response.json();",
+                  "pm.environment.set('reviewOrderId', json.id);",
+                  "pm.test('Starts PENDING', function () { pm.expect(json.status).to.eql('PENDING'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Submit Review - Unpaid Order Blocked",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/products/{{vendorProductId}}/reviews",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rating\": 5,\n  \"comment\": \"Trying to review before paying.\"\n}"
+            },
+            "description": "Only PAID and SHIPPED orders count as proof of purchase, so a PENDING order is not enough. Expects 403."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Unpaid purchase cannot review', function () { pm.response.to.have.status(403); });",
+                  "pm.test('Message explains the rule', function () { pm.expect(pm.response.text()).to.include('only review products you have purchased'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Process Payment For Review Order",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orderId\": \"{{reviewOrderId}}\"\n}"
+            },
+            "description": "Moves the order to PAID, which makes the purchase review-eligible."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Payment successful', function () { pm.response.to.have.status(201); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Submit Review - Authorized Purchase",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/products/{{vendorProductId}}/reviews",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rating\": 4,\n  \"comment\": \"Arrived quickly and works exactly as described.\",\n  \"imageUrl\": \"{{uploadedImageUrl}}\"\n}"
+            },
+            "description": "The authorized review submission flow. The caller is ROLE_CUSTOMER and now has a PAID order containing this product, so the review is accepted with 201. imageUrl is optional and is filled in by folder 10; leaving it as an unresolved variable simply stores an empty value."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Review accepted', function () { pm.response.to.have.status(201); });",
+                  "const json = pm.response.json();",
+                  "pm.environment.set('reviewId', json.id);",
+                  "pm.test('Echoes the submitted rating', function () { pm.expect(json.rating).to.eql(4); });",
+                  "pm.test('Attributed to the caller', function () {",
+                  "    pm.expect(String(json.userId)).to.eql(String(pm.environment.get('userId')));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Submit Review - Duplicate Blocked",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/products/{{vendorProductId}}/reviews",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rating\": 1,\n  \"comment\": \"Second attempt at the same product.\"\n}"
+            },
+            "description": "One review per customer per product, enforced in code and by a unique index."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Duplicate review rejected', function () { pm.response.to.have.status(403); });",
+                  "pm.test('Message explains the rule', function () { pm.expect(pm.response.text()).to.include('already reviewed'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Submit Review - Not Purchased",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/products/{{unpurchasedProductId}}/reviews",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rating\": 5,\n  \"comment\": \"I never actually bought this one.\"\n}"
+            },
+            "description": "The acceptance criterion for Module 3: a review attempt on a product the caller never bought is rejected with 403."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Un-purchased review is rejected', function () { pm.expect([400, 403]).to.include(pm.response.code); });",
+                  "pm.test('Message explains the rule', function () { pm.expect(pm.response.text()).to.include('only review products you have purchased'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Submit Review - Invalid Rating",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/products/{{vendorProductId}}/reviews",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rating\": 6,\n  \"comment\": \"Rating out of range.\"\n}"
+            },
+            "description": "Bean Validation keeps rating within 1-5 before the service is reached."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Out-of-range rating is a validation error', function () { pm.response.to.have.status(400); });",
+                  "pm.test('Field error reported', function () { pm.expect(pm.response.text()).to.include('rating'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Submit Review - Missing Comment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/products/{{vendorProductId}}/reviews",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rating\": 3\n}"
+            },
+            "description": "comment is NOT NULL in the schema and @NotBlank on the DTO."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Missing comment is a validation error', function () { pm.response.to.have.status(400); });",
+                  "pm.test('Field error reported', function () { pm.expect(pm.response.text()).to.include('comment'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Submit Review - Vendor Forbidden",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/products/{{vendorProductId}}/reviews",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{vendorToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rating\": 5,\n  \"comment\": \"Reviewing my own product.\"\n}"
+            },
+            "description": "Review submission is ROLE_CUSTOMER only, so a vendor cannot rate its own goods."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Vendor is forbidden', function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Product Reviews With Aggregates",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/products/{{vendorProductId}}/reviews?page=0&size=10",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Paginated reviews plus the aggregate metrics Module 3 asks for: averageRating, totalReviews and a full 5-to-1 ratingBreakdown."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Reviews returned', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test('Aggregate metrics present', function () {",
+                  "    pm.expect(json).to.have.property('averageRating');",
+                  "    pm.expect(json).to.have.property('totalReviews');",
+                  "    pm.expect(json).to.have.property('ratingBreakdown');",
+                  "});",
+                  "pm.test('Average reflects the single 4-star review', function () { pm.expect(json.averageRating).to.eql(4.0); });",
+                  "pm.test('Total review count is 1', function () { pm.expect(json.totalReviews).to.eql(1); });",
+                  "pm.test('Breakdown covers all five stars', function () {",
+                  "    pm.expect(Object.keys(json.ratingBreakdown).length).to.eql(5);",
+                  "    pm.expect(json.ratingBreakdown['4']).to.eql(1);",
+                  "});",
+                  "pm.test('Page metadata present', function () {",
+                  "    pm.expect(json).to.have.property('page');",
+                  "    pm.expect(json).to.have.property('totalPages');",
+                  "    pm.expect(json.reviews.length).to.be.above(0);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Product Reviews - Sorted By Rating",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/products/{{vendorProductId}}/reviews?page=0&size=5&sort=rating,desc",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Reviews default to newest first; any review property can be sorted on instead."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Sorted page returned', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Requested page size honoured', function () { pm.expect(pm.response.json().size).to.eql(5); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Product Rating Recalculated",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/products/{{vendorProductId}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Proves the rating engine wrote back to the product. Both denormalised columns are refreshed inside the review transaction."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Product returned', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test('Average rating recalculated', function () { pm.expect(json.ratingAverage).to.eql(4.0); });",
+                  "pm.test('Review count recalculated', function () { pm.expect(json.reviewCount).to.eql(1); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Vendor Rating Recalculated",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/vendors/{{vendorId}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "The other half of the Module 3 requirement: the parent vendor's rating is recalculated on every new review, as a volume-weighted average across all reviews of all its products."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Vendor returned', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Vendor average rating recalculated', function () { pm.expect(pm.response.json().ratingAverage).to.eql(4.0); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Filter Catalog By minRating",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/products?minRating=4&page=0&size=10",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "The recalculated column is queryable, so the catalogue can be filtered by rating."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Filter applied', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test('No row falls below the floor', function () {",
+                  "    json.content.forEach(function (p) { pm.expect(p.ratingAverage).to.be.at.least(4); });",
+                  "});",
+                  "pm.test('Reviewed product is included', function () {",
+                  "    const ids = json.content.map(function (p) { return String(p.id); });",
+                  "    pm.expect(ids).to.include(String(pm.environment.get('vendorProductId')));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Reviews - Unknown Product",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/products/999999/reviews?page=0&size=10",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Unknown product is 404', function () { pm.response.to.have.status(404); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "10. Phase 4 - Media Upload",
+      "description": "Assignment Phase 4, Module 4. multipart/form-data image upload with the four rejection cases the acceptance criteria call for: wrong extension, wrong content type, a non-image wearing a .png name, and a file over 2 MB.\n\nFile paths are relative to the postman/ folder. In Postman, set the working directory to the repository's postman/ folder (Settings > General > Working directory), or re-select the file with the Select Files button. Run 'python postman/sample-files/generate-samples.py' once to create the sample files, including the oversized one which is not committed.\n\nRun this folder before folder 9 if you want the review to carry a photo, or after it to attach the image to the vendor product.",
+      "item": [
+        {
+          "name": "Upload Product Image - Valid PNG",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/media/upload",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "sample-files/sample-product.png"
+                },
+                {
+                  "key": "category",
+                  "value": "products",
+                  "type": "text"
+                }
+              ]
+            },
+            "description": "The happy path. Returns the stored filename and the public static URL the file is served under, in the shape /uploads/products/img_<id>.png."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Upload accepted', function () { pm.response.to.have.status(201); });",
+                  "const json = pm.response.json();",
+                  "pm.environment.set('uploadedImageUrl', json.url);",
+                  "pm.environment.set('uploadedFileName', json.fileName);",
+                  "pm.test('Public URL is under the products folder', function () {",
+                  "    pm.expect(json.url).to.match(/^\\/uploads\\/products\\/img_.+\\.(png|jpe?g)$/);",
+                  "});",
+                  "pm.test('Client filename was not reused on disk', function () {",
+                  "    pm.expect(json.fileName).to.not.include('sample-product');",
+                  "});",
+                  "pm.test('Reports type and size', function () {",
+                  "    pm.expect(json.contentType).to.eql('image/png');",
+                  "    pm.expect(json.sizeBytes).to.be.above(0);",
+                  "    pm.expect(json.sizeBytes).to.be.at.most(2 * 1024 * 1024);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Fetch Uploaded Image From Public URL",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{uploadedImageUrl}}",
+            "description": "The returned path is served as static content and is deliberately public, so an <img src> tag works without a token."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Image is publicly served', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Served as an image', function () {",
+                  "    pm.expect(pm.response.headers.get('Content-Type')).to.include('image');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Upload Vendor Logo",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/media/upload",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "sample-files/sample-product.png"
+                },
+                {
+                  "key": "category",
+                  "value": "vendors",
+                  "type": "text"
+                }
+              ]
+            },
+            "description": "The category parameter selects the sub-folder. Allowed: products, vendors, reviews."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Upload accepted', function () { pm.response.to.have.status(201); });",
+                  "const json = pm.response.json();",
+                  "pm.environment.set('uploadedLogoUrl', json.url);",
+                  "pm.test('Stored under the vendors folder', function () { pm.expect(json.url).to.include('/uploads/vendors/'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Upload - Executable Rejected",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/media/upload",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "sample-files/not-an-image.exe"
+                },
+                {
+                  "key": "category",
+                  "value": "products",
+                  "type": "text"
+                }
+              ]
+            },
+            "description": "Acceptance criterion: an .exe is rejected with 400 and a clear message."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Executable rejected', function () { pm.response.to.have.status(400); });",
+                  "pm.test('Message names the problem', function () {",
+                  "    const text = pm.response.text();",
+                  "    pm.expect(text.toLowerCase()).to.satisfy(function (t) {",
+                  "        return t.includes('content type') || t.includes('extension');",
+                  "    });",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Upload - PDF Rejected",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/media/upload",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "sample-files/not-an-image.pdf"
+                },
+                {
+                  "key": "category",
+                  "value": "products",
+                  "type": "text"
+                }
+              ]
+            },
+            "description": "Acceptance criterion: a .pdf is rejected with 400 and a clear message."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('PDF rejected', function () { pm.response.to.have.status(400); });",
+                  "pm.test('Only JPEG and PNG are advertised', function () {",
+                  "    const text = pm.response.text();",
+                  "    pm.expect(text.toLowerCase()).to.satisfy(function (t) {",
+                  "        return t.includes('content type') || t.includes('extension');",
+                  "    });",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Upload - Renamed Executable With PNG Extension",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/media/upload",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "sample-files/renamed-executable.png"
+                },
+                {
+                  "key": "category",
+                  "value": "products",
+                  "type": "text"
+                }
+              ]
+            },
+            "description": "The interesting case. The extension is .png and Postman will send image/png, so extension and content-type checks both pass. The upload is still rejected because the bytes cannot be decoded as an image."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Forged image rejected', function () { pm.response.to.have.status(400); });",
+                  "pm.test('Rejected at the decode stage', function () {",
+                  "    pm.expect(pm.response.text()).to.include('not a valid image');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Upload - Oversized File Rejected",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/media/upload",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "sample-files/oversized-image.png"
+                },
+                {
+                  "key": "category",
+                  "value": "products",
+                  "type": "text"
+                }
+              ]
+            },
+            "description": "Acceptance criterion: over 2 MB is rejected with 400. The container limits are set to 10 MB so the request reaches the service and gets a descriptive message instead of Tomcat's generic one.\n\noversized-image.png is not committed to the repository. Generate it with 'python postman/sample-files/generate-samples.py', or point this field at any photo larger than 2 MB."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Oversized file rejected', function () { pm.response.to.have.status(400); });",
+                  "pm.test('Message states both sizes', function () {",
+                  "    const text = pm.response.text();",
+                  "    pm.expect(text).to.include('too large');",
+                  "    pm.expect(text).to.include('2.00 MB');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Upload - Missing File Part",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/media/upload",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "category",
+                  "value": "products",
+                  "type": "text"
+                }
+              ]
+            },
+            "description": "No file part at all. Handled as a 400 rather than a 500."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Missing file is a 400', function () { pm.response.to.have.status(400); });",
+                  "pm.test('Message names the expected field', function () { pm.expect(pm.response.text()).to.include('file'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Upload - Unsupported Category",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/media/upload",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{customerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "sample-files/sample-product.png"
+                },
+                {
+                  "key": "category",
+                  "value": "../../etc",
+                  "type": "text"
+                }
+              ]
+            },
+            "description": "category is a whitelist, not free text, so a traversal attempt cannot create directories outside the upload root."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Unsupported category rejected', function () { pm.response.to.have.status(400); });",
+                  "pm.test('Allowed values are listed', function () { pm.expect(pm.response.text()).to.include('products'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Upload - Unauthenticated",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/media/upload",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "category",
+                  "value": "products",
+                  "type": "text"
+                }
+              ]
+            },
+            "description": "Uploading requires a token. Only reading /uploads/** is public."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Anonymous upload is rejected', function () { pm.expect([401, 403]).to.include(pm.response.code); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Attach Uploaded Image To Vendor Product",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/products/{{vendorProductId}}",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{vendorToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Vendor Reviewable Widget (with image)\",\n  \"category\": \"Accessories\",\n  \"price\": 1499.0,\n  \"stock\": 25,\n  \"imageUrl\": \"{{uploadedImageUrl}}\"\n}"
+            },
+            "description": "Closes the loop: the URL produced by the upload endpoint is stored on the product. Requires folder 8 to have run so vendorToken and vendorProductId are set."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Product updated', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Image URL persisted', function () {",
+                  "    pm.expect(pm.response.json().imageUrl).to.eql(pm.environment.get('uploadedImageUrl'));",
+                  "});"
                 ]
               }
             }
