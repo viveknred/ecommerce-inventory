@@ -7,6 +7,7 @@ import java.util.Optional;
 
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -20,42 +21,45 @@ import com.example.ecommerce.entity.Product;
 import com.example.ecommerce.entity.Role;
 import com.example.ecommerce.entity.User;
 import com.example.ecommerce.entity.Vendor;
+import com.example.ecommerce.event.StockLowWebhookEvent;
 import com.example.ecommerce.exception.ResourceNotFoundException;
 import com.example.ecommerce.repository.ProductRepository;
 import com.example.ecommerce.repository.ReviewRepository;
+import com.example.ecommerce.search.ProductSearchIndexer;
 import com.example.ecommerce.security.CurrentUserService;
 import com.example.ecommerce.specification.ProductSpecification;
 
 @Service
 public class ProductService {
 
+    private static final int LOW_STOCK_THRESHOLD = 5;
+
     private final ProductRepository productRepository;
     private final ReviewRepository reviewRepository;
     private final VendorService vendorService;
     private final CurrentUserService currentUserService;
     private final AuditService auditService;
+    private final ProductSearchIndexer productSearchIndexer;
+    private final ApplicationEventPublisher eventPublisher;
 
     public ProductService(
             ProductRepository productRepository,
             ReviewRepository reviewRepository,
             VendorService vendorService,
             CurrentUserService currentUserService,
-            AuditService auditService) {
+            AuditService auditService,
+            ProductSearchIndexer productSearchIndexer,
+            ApplicationEventPublisher eventPublisher) {
 
         this.productRepository = productRepository;
         this.reviewRepository = reviewRepository;
         this.vendorService = vendorService;
         this.currentUserService = currentUserService;
         this.auditService = auditService;
+        this.productSearchIndexer = productSearchIndexer;
+        this.eventPublisher = eventPublisher;
     }
 
-    /**
-     * Creates a product.
-     *
-     * <p>Phase 4 scoping: ROLE_ADMIN must name the owning vendor explicitly,
-     * while a ROLE_VENDOR account always has its own vendor id forced onto the
-     * product regardless of what the request body says.
-     */
     @CacheEvict(value = {"products", "product"}, allEntries = true)
     @Transactional
     public ProductResponse create(ProductRequest request) {
@@ -77,16 +81,45 @@ public class ProductService {
         Product savedProduct =
                 productRepository.save(product);
 
+        productSearchIndexer.index(savedProduct);
+
         Map<String, Object> details =
                 new HashMap<>();
 
-        details.put("productId", savedProduct.getId());
-        details.put("name", savedProduct.getName());
-        details.put("category", savedProduct.getCategory());
-        details.put("price", savedProduct.getPrice());
-        details.put("stock", savedProduct.getStock());
-        details.put("vendorId", vendor.getId());
-        details.put("vendorName", vendor.getBusinessName());
+        details.put(
+                "productId",
+                savedProduct.getId()
+        );
+
+        details.put(
+                "name",
+                savedProduct.getName()
+        );
+
+        details.put(
+                "category",
+                savedProduct.getCategory()
+        );
+
+        details.put(
+                "price",
+                savedProduct.getPrice()
+        );
+
+        details.put(
+                "stock",
+                savedProduct.getStock()
+        );
+
+        details.put(
+                "vendorId",
+                vendor.getId()
+        );
+
+        details.put(
+                "vendorName",
+                vendor.getBusinessName()
+        );
 
         auditService.log(
                 "Product",
@@ -97,13 +130,6 @@ public class ProductService {
         return ProductResponse.from(savedProduct);
     }
 
-    /**
-     * Filtered, paginated catalogue.
-     *
-     * <p>{@code getProducts} and {@link #search} deliberately share the
-     * {@code products} cache: they take the same arguments and return the same
-     * result, so a hit populated by one is a valid hit for the other.
-     */
     @Cacheable(value = "products")
     @Transactional(readOnly = true)
     public Page<ProductResponse> getProducts(
@@ -126,15 +152,6 @@ public class ProductService {
         );
     }
 
-    /**
-     * Alias of {@link #getProducts} kept for the {@code /search} route.
-     *
-     * <p>Both entry points delegate to the private {@link #queryProducts}
-     * helper. Previously {@code search} called {@code getProducts} directly,
-     * which is a self-invocation: the call never left the object, so it bypassed
-     * the Spring cache proxy and {@code @Cacheable} was silently ineffective for
-     * every request that arrived through {@code /search}.
-     */
     @Cacheable(value = "products")
     @Transactional(readOnly = true)
     public Page<ProductResponse> search(
@@ -157,15 +174,11 @@ public class ProductService {
         );
     }
 
-    /**
-     * Phase 4, Module 2: {@code GET /api/v1/vendors/{id}/products}.
-     */
     @Transactional(readOnly = true)
     public Page<ProductResponse> getByVendor(
             Long vendorId,
             Pageable pageable) {
 
-        // Surfaces a 404 for an unknown vendor rather than an empty page.
         vendorService.getEntity(vendorId);
 
         return productRepository
@@ -176,12 +189,12 @@ public class ProductService {
     @Cacheable(value = "product", key = "#p0")
     @Transactional(readOnly = true)
     public ProductResponse getById(Long id) {
-        return ProductResponse.from(getEntity(id));
+
+        return ProductResponse.from(
+                getEntity(id)
+        );
     }
 
-    /**
-     * Entity lookup shared with {@code ReviewService}.
-     */
     @Transactional(readOnly = true)
     public Product getEntity(Long id) {
 
@@ -190,7 +203,8 @@ public class ProductService {
                 .orElseThrow(() ->
                         new ResourceNotFoundException(
                                 "Product not found with id: " + id
-                        ));
+                        )
+                );
     }
 
     @CacheEvict(value = {"products", "product"}, allEntries = true)
@@ -199,41 +213,98 @@ public class ProductService {
             Long id,
             ProductRequest request) {
 
-        Product product = getEntity(id);
+        Product product =
+                getEntity(id);
 
         assertCanManage(product);
 
         Vendor vendor =
-                resolveVendorForWrite(request.getVendorId());
+                resolveVendorForWrite(
+                        request.getVendorId()
+                );
 
-        // Captured before mutation. The previous implementation read oldPrice
-        // off the same instance *after* the setters had run, so the audit log
-        // recorded the new price as both the old and the new value.
-        int oldStock = product.getStock();
-        BigDecimal oldPrice = product.getPrice();
+        int oldStock =
+                product.getStock();
 
-        product.setName(request.getName());
-        product.setCategory(request.getCategory());
-        product.setPrice(request.getPrice());
-        product.setStock(request.getStock());
+        BigDecimal oldPrice =
+                product.getPrice();
+
+        product.setName(
+                request.getName()
+        );
+
+        product.setCategory(
+                request.getCategory()
+        );
+
+        product.setPrice(
+                request.getPrice()
+        );
+
+        product.setStock(
+                request.getStock()
+        );
+
         product.setVendor(vendor);
 
         if (request.getImageUrl() != null) {
-            product.setImageUrl(normalise(request.getImageUrl()));
+            product.setImageUrl(
+                    normalise(
+                            request.getImageUrl()
+                    )
+            );
         }
 
         Product updatedProduct =
                 productRepository.save(product);
 
+        productSearchIndexer.index(
+                updatedProduct
+        );
+
+        if (oldStock > LOW_STOCK_THRESHOLD
+                && updatedProduct.getStock()
+                        <= LOW_STOCK_THRESHOLD) {
+
+            eventPublisher.publishEvent(
+                    new StockLowWebhookEvent(
+                            updatedProduct.getId()
+                    )
+            );
+        }
+
         Map<String, Object> details =
                 new HashMap<>();
 
-        details.put("productId", updatedProduct.getId());
-        details.put("oldStock", oldStock);
-        details.put("newStock", updatedProduct.getStock());
-        details.put("oldPrice", oldPrice);
-        details.put("newPrice", updatedProduct.getPrice());
-        details.put("vendorId", vendor.getId());
+        details.put(
+                "productId",
+                updatedProduct.getId()
+        );
+
+        details.put(
+                "oldStock",
+                oldStock
+        );
+
+        details.put(
+                "newStock",
+                updatedProduct.getStock()
+        );
+
+        details.put(
+                "oldPrice",
+                oldPrice
+        );
+
+        details.put(
+                "newPrice",
+                updatedProduct.getPrice()
+        );
+
+        details.put(
+                "vendorId",
+                vendor.getId()
+        );
 
         auditService.log(
                 "Product",
@@ -241,7 +312,9 @@ public class ProductService {
                 details
         );
 
-        return ProductResponse.from(updatedProduct);
+        return ProductResponse.from(
+                updatedProduct
+        );
     }
 
     @CacheEvict(value = {"products", "product"}, allEntries = true)
@@ -250,24 +323,70 @@ public class ProductService {
             Long id,
             Integer quantity) {
 
-        Product product = getEntity(id);
+        Product product =
+                getEntity(id);
 
-        int oldStock = product.getStock();
-        int newStock = oldStock + quantity;
+        int oldStock =
+                product.getStock();
 
-        product.setStock(newStock);
+        int newStock =
+                oldStock + quantity;
+
+        if (newStock < 0) {
+
+            throw new IllegalArgumentException(
+                    "Stock cannot become negative"
+            );
+        }
+
+        product.setStock(
+                newStock
+        );
 
         Product updatedProduct =
                 productRepository.save(product);
 
+        productSearchIndexer.index(
+                updatedProduct
+        );
+
+        if (oldStock > LOW_STOCK_THRESHOLD
+                && newStock <= LOW_STOCK_THRESHOLD) {
+
+            eventPublisher.publishEvent(
+                    new StockLowWebhookEvent(
+                            updatedProduct.getId()
+                    )
+            );
+        }
+
         Map<String, Object> details =
                 new HashMap<>();
 
-        details.put("productId", product.getId());
-        details.put("productName", product.getName());
-        details.put("oldStock", oldStock);
-        details.put("quantityChanged", quantity);
-        details.put("newStock", newStock);
+        details.put(
+                "productId",
+                product.getId()
+        );
+
+        details.put(
+                "productName",
+                product.getName()
+        );
+
+        details.put(
+                "oldStock",
+                oldStock
+        );
+
+        details.put(
+                "quantityChanged",
+                quantity
+        );
+
+        details.put(
+                "newStock",
+                newStock
+        );
 
         String action =
                 quantity < 0
@@ -280,30 +399,54 @@ public class ProductService {
                 details
         );
 
-        return ProductResponse.from(updatedProduct);
+        return ProductResponse.from(
+                updatedProduct
+        );
     }
 
     @CacheEvict(value = {"products", "product"}, allEntries = true)
     @Transactional
     public void delete(Long id) {
 
-        Product product = getEntity(id);
+        Product product =
+                getEntity(id);
 
         assertCanManage(product);
 
         Map<String, Object> details =
                 new HashMap<>();
 
-        details.put("productId", product.getId());
-        details.put("name", product.getName());
-        details.put("price", product.getPrice());
-        details.put("stock", product.getStock());
+        details.put(
+                "productId",
+                product.getId()
+        );
+
+        details.put(
+                "name",
+                product.getName()
+        );
+
+        details.put(
+                "price",
+                product.getPrice()
+        );
+
+        details.put(
+                "stock",
+                product.getStock()
+        );
 
         if (product.getVendor() != null) {
-            details.put("vendorId", product.getVendor().getId());
+
+            details.put(
+                    "vendorId",
+                    product.getVendor().getId()
+            );
         }
 
         productRepository.deleteById(id);
+
+        productSearchIndexer.delete(id);
 
         auditService.log(
                 "Product",
@@ -312,43 +455,51 @@ public class ProductService {
         );
     }
 
-    /**
-     * Phase 4, Module 3: recomputes the denormalised rating columns on one
-     * product from its reviews. Called after every new review.
-     *
-     * @return the recalculated average, or {@code 0.0} when the last review was
-     *         removed
-     */
     @CacheEvict(value = {"products", "product"}, allEntries = true)
     @Transactional
-    public double recalculateRatingAverage(Long productId) {
+    public double recalculateRatingAverage(
+            Long productId) {
 
-        Product product = getEntity(productId);
+        Product product =
+                getEntity(productId);
 
         Double average =
                 reviewRepository
-                        .findAverageRatingByProductId(productId);
+                        .findAverageRatingByProductId(
+                                productId
+                        );
 
         long count =
-                reviewRepository.countByProductId(productId);
+                reviewRepository
+                        .countByProductId(
+                                productId
+                        );
 
         double rounded =
                 average == null
                         ? 0.0
-                        : Math.round(average * 100.0) / 100.0;
+                        : Math.round(
+                                average * 100.0
+                        ) / 100.0;
 
-        product.setRatingAverage(rounded);
-        product.setReviewCount((int) count);
+        product.setRatingAverage(
+                rounded
+        );
 
-        productRepository.save(product);
+        product.setReviewCount(
+                (int) count
+        );
+
+        Product savedProduct =
+                productRepository.save(product);
+
+        productSearchIndexer.index(
+                savedProduct
+        );
 
         return rounded;
     }
 
-    /**
-     * Composes only the filters the caller actually supplied, so unused
-     * parameters never reach the generated SQL.
-     */
     private Page<ProductResponse> queryProducts(
             String category,
             BigDecimal minPrice,
@@ -366,7 +517,10 @@ public class ProductService {
 
             specification =
                     specification.and(
-                            ProductSpecification.hasCategory(category)
+                            ProductSpecification
+                                    .hasCategory(
+                                            category
+                                    )
                     );
         }
 
@@ -375,7 +529,9 @@ public class ProductService {
             specification =
                     specification.and(
                             ProductSpecification
-                                    .priceGreaterThanOrEqualTo(minPrice)
+                                    .priceGreaterThanOrEqualTo(
+                                            minPrice
+                                    )
                     );
         }
 
@@ -384,7 +540,9 @@ public class ProductService {
             specification =
                     specification.and(
                             ProductSpecification
-                                    .priceLessThanOrEqualTo(maxPrice)
+                                    .priceLessThanOrEqualTo(
+                                            maxPrice
+                                    )
                     );
         }
 
@@ -392,7 +550,8 @@ public class ProductService {
 
             specification =
                     specification.and(
-                            ProductSpecification.isInStock()
+                            ProductSpecification
+                                    .isInStock()
                     );
         }
 
@@ -400,7 +559,10 @@ public class ProductService {
 
             specification =
                     specification.and(
-                            ProductSpecification.hasVendor(vendorId)
+                            ProductSpecification
+                                    .hasVendor(
+                                            vendorId
+                                    )
                     );
         }
 
@@ -408,30 +570,35 @@ public class ProductService {
 
             specification =
                     specification.and(
-                            ProductSpecification.ratingAtLeast(minRating)
+                            ProductSpecification
+                                    .ratingAtLeast(
+                                            minRating
+                                    )
                     );
         }
 
         return productRepository
-                .findAll(specification, pageable)
-                .map(ProductResponse::from);
+                .findAll(
+                        specification,
+                        pageable
+                )
+                .map(
+                        ProductResponse::from
+                );
     }
 
-    /**
-     * Decides which vendor a write may target.
-     *
-     * <p>A ROLE_VENDOR caller is pinned to its own vendor and cannot name
-     * another one. A ROLE_ADMIN caller must name a vendor, because in the
-     * marketplace model every new product belongs to a seller.
-     */
-    private Vendor resolveVendorForWrite(Long requestedVendorId) {
+    private Vendor resolveVendorForWrite(
+            Long requestedVendorId) {
 
         User currentUser =
-                currentUserService.requireCurrentUser();
+                currentUserService
+                        .requireCurrentUser();
 
-        if (currentUser.getRole() == Role.VENDOR) {
+        if (currentUser.getRole()
+                == Role.VENDOR) {
 
-            Vendor ownVendor = currentUser.getVendor();
+            Vendor ownVendor =
+                    currentUser.getVendor();
 
             if (ownVendor == null) {
 
@@ -443,7 +610,9 @@ public class ProductService {
             }
 
             if (requestedVendorId != null
-                    && !requestedVendorId.equals(ownVendor.getId())) {
+                    && !requestedVendorId.equals(
+                            ownVendor.getId()
+                    )) {
 
                 throw new AccessDeniedException(
                         "You may only manage products for vendor "
@@ -465,22 +634,26 @@ public class ProductService {
             );
         }
 
-        return vendorService.getEntity(requestedVendorId);
+        return vendorService.getEntity(
+                requestedVendorId
+        );
     }
 
-    /**
-     * Rejects a ROLE_VENDOR caller touching a product it does not own.
-     */
-    private void assertCanManage(Product product) {
+    private void assertCanManage(
+            Product product) {
 
         User currentUser =
-                currentUserService.requireCurrentUser();
+                currentUserService
+                        .requireCurrentUser();
 
-        if (currentUser.getRole() != Role.VENDOR) {
+        if (currentUser.getRole()
+                != Role.VENDOR) {
+
             return;
         }
 
-        Vendor ownVendor = currentUser.getVendor();
+        Vendor ownVendor =
+                currentUser.getVendor();
 
         if (ownVendor == null) {
 
@@ -492,7 +665,10 @@ public class ProductService {
         boolean ownsProduct =
                 product.getVendor() != null
                         && ownVendor.getId()
-                        .equals(product.getVendor().getId());
+                                .equals(
+                                        product.getVendor()
+                                                .getId()
+                                );
 
         if (!ownsProduct) {
 
@@ -510,7 +686,10 @@ public class ProductService {
         return Optional
                 .ofNullable(value)
                 .map(String::trim)
-                .filter(trimmed -> !trimmed.isEmpty())
+                .filter(
+                        trimmed ->
+                                !trimmed.isEmpty()
+                )
                 .orElse(null);
     }
 }
