@@ -29,49 +29,66 @@ public class SecurityConfig {
             HttpSecurity http) throws Exception {
 
         http
-                .csrf(csrf -> csrf.disable())
-
-                .sessionManagement(session ->
-                        session.sessionCreationPolicy(
-                                SessionCreationPolicy.STATELESS
-                        )
+                .csrf(
+                        csrf ->
+                                csrf.disable()
                 )
 
-                .authorizeHttpRequests(auth -> auth
+                .sessionManagement(
+                        session ->
+                                session.sessionCreationPolicy(
+                                        SessionCreationPolicy.STATELESS
+                                )
+                )
 
-                        .requestMatchers(
-                                "/api/v1/auth/register",
-                                "/api/v1/auth/login"
-                        ).permitAll()
+                .authorizeHttpRequests(
+                        auth -> auth
 
-                        // Phase 4, Module 4: uploaded images are public static
-                        // content. They are served by the resource handler in
-                        // WebConfig, not by a controller, so they need their own
-                        // rule; without it every <img src> would 401.
-                        .requestMatchers(
-                                HttpMethod.GET,
-                                "/uploads/**"
-                        ).permitAll()
+                                .requestMatchers(
+                                        "/api/v1/auth/register",
+                                        "/api/v1/auth/login"
+                                )
+                                .permitAll()
 
-                        .requestMatchers(
-                                "/swagger-ui/**",
-                                "/swagger-ui.html",
-                                "/v3/api-docs/**"
-                        ).permitAll()
+                                .requestMatchers(
+                                        "/ws-notifications/**"
+                                )
+                                .permitAll()
 
-                        .requestMatchers(
-                                "/actuator/health",
-                                "/actuator/health/**",
-                                "/actuator/metrics",
-                                "/actuator/metrics/**"
-                        ).permitAll()
+                                .requestMatchers(
+                                        "/internal/payment-gateway/**"
+                                )
+                                .permitAll()
 
-                        .requestMatchers(
-                                HttpMethod.OPTIONS,
-                                "/**"
-                        ).permitAll()
+                                .requestMatchers(
+                                        HttpMethod.GET,
+                                        "/uploads/**"
+                                )
+                                .permitAll()
 
-                        .anyRequest().authenticated()
+                                .requestMatchers(
+                                        "/swagger-ui/**",
+                                        "/swagger-ui.html",
+                                        "/v3/api-docs/**"
+                                )
+                                .permitAll()
+
+                                .requestMatchers(
+                                        "/actuator/health",
+                                        "/actuator/health/**",
+                                        "/actuator/metrics",
+                                        "/actuator/metrics/**"
+                                )
+                                .permitAll()
+
+                                .requestMatchers(
+                                        HttpMethod.OPTIONS,
+                                        "/**"
+                                )
+                                .permitAll()
+
+                                .anyRequest()
+                                .authenticated()
                 )
 
                 .addFilterBefore(

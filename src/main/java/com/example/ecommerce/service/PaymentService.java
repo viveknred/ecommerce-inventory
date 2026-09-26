@@ -1,12 +1,14 @@
 package com.example.ecommerce.service;
 
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.example.ecommerce.dto.PaymentGatewayRequest;
+import com.example.ecommerce.dto.PaymentGatewayResponse;
 import com.example.ecommerce.dto.PaymentRequest;
 import com.example.ecommerce.dto.PaymentResponse;
 import com.example.ecommerce.entity.Order;
@@ -24,15 +26,30 @@ public class PaymentService {
     private final PaymentRepository paymentRepository;
     private final OrderRepository orderRepository;
     private final AuditService auditService;
+    private final OrderNotificationService orderNotificationService;
+    private final PaymentGatewayClient paymentGatewayClient;
 
     public PaymentService(
             PaymentRepository paymentRepository,
             OrderRepository orderRepository,
-            AuditService auditService) {
+            AuditService auditService,
+            OrderNotificationService orderNotificationService,
+            PaymentGatewayClient paymentGatewayClient) {
 
-        this.paymentRepository = paymentRepository;
-        this.orderRepository = orderRepository;
-        this.auditService = auditService;
+        this.paymentRepository =
+                paymentRepository;
+
+        this.orderRepository =
+                orderRepository;
+
+        this.auditService =
+                auditService;
+
+        this.orderNotificationService =
+                orderNotificationService;
+
+        this.paymentGatewayClient =
+                paymentGatewayClient;
     }
 
     @Transactional
@@ -40,50 +57,138 @@ public class PaymentService {
             PaymentRequest request,
             String email) {
 
-        Order order = orderRepository
-                .findById(request.getOrderId())
-                .orElseThrow(() ->
-                        new ResourceNotFoundException(
-                                "Order not found"));
+        Order order =
+                orderRepository
+                        .findById(
+                                request.getOrderId()
+                        )
+                        .orElseThrow(() ->
+                                new ResourceNotFoundException(
+                                        "Order not found"
+                                )
+                        );
 
         if (!order.getUser()
                 .getEmail()
                 .equals(email)) {
 
             throw new ResourceNotFoundException(
-                    "Order not found");
+                    "Order not found"
+            );
         }
 
         if (order.getStatus()
                 != OrderStatus.PENDING) {
 
             throw new InvalidStateTransitionException(
-                    "Payment can only be processed for a PENDING order");
+                    "Payment can only be processed for a PENDING order"
+            );
         }
 
         if (paymentRepository
-                .findByOrderId(order.getId())
+                .findByOrderId(
+                        order.getId()
+                )
                 .isPresent()) {
 
             throw new InvalidStateTransitionException(
-                    "Payment already exists for this order");
+                    "Payment already exists for this order"
+            );
         }
 
-        Payment payment = new Payment();
+        PaymentGatewayRequest gatewayRequest =
+                new PaymentGatewayRequest(
+                        order.getId(),
+                        order.getTotalAmount()
+                );
 
-        payment.setOrder(order);
-        payment.setAmount(order.getTotalAmount());
-        payment.setStatus(PaymentStatus.SUCCESS);
-        payment.setTransactionId(
-                "TXN-" + UUID.randomUUID()
+        PaymentGatewayResponse gatewayResponse =
+                paymentGatewayClient.charge(
+                        gatewayRequest
+                );
+
+        if (!gatewayResponse.success()) {
+
+            Map<String, Object> details =
+                    new HashMap<>();
+
+            details.put(
+                    "orderId",
+                    order.getId()
+            );
+
+            details.put(
+                    "amount",
+                    order.getTotalAmount()
+            );
+
+            details.put(
+                    "status",
+                    "FAILED"
+            );
+
+            details.put(
+                    "reason",
+                    gatewayResponse.message()
+            );
+
+            auditService.log(
+                    "Payment",
+                    "PAYMENT_GATEWAY_UNAVAILABLE",
+                    details
+            );
+
+            return new PaymentResponse(
+                    null,
+                    order.getId(),
+                    order.getTotalAmount(),
+                    PaymentStatus.FAILED,
+                    null,
+                    LocalDateTime.now()
+            );
+        }
+
+        Payment payment =
+                new Payment();
+
+        payment.setOrder(
+                order
         );
 
-        order.setStatus(OrderStatus.PAID);
+        payment.setAmount(
+                order.getTotalAmount()
+        );
 
-        orderRepository.save(order);
+        payment.setStatus(
+                PaymentStatus.SUCCESS
+        );
+
+        payment.setTransactionId(
+                gatewayResponse.transactionId()
+        );
+
+        OrderStatus oldStatus =
+                order.getStatus();
+
+        order.setStatus(
+                OrderStatus.PAID
+        );
+
+        orderRepository.save(
+                order
+        );
 
         Payment savedPayment =
-                paymentRepository.save(payment);
+                paymentRepository.save(
+                        payment
+                );
+
+        orderNotificationService
+                .notifyStatusChange(
+                        order.getId(),
+                        oldStatus,
+                        OrderStatus.PAID
+                );
 
         Map<String, Object> details =
                 new HashMap<>();
@@ -119,18 +224,25 @@ public class PaymentService {
                 details
         );
 
-        return toResponse(savedPayment);
+        return toResponse(
+                savedPayment
+        );
     }
 
     public PaymentResponse getPaymentByOrderId(
             Long orderId,
             String email) {
 
-        Payment payment = paymentRepository
-                .findByOrderId(orderId)
-                .orElseThrow(() ->
-                        new ResourceNotFoundException(
-                                "Payment not found"));
+        Payment payment =
+                paymentRepository
+                        .findByOrderId(
+                                orderId
+                        )
+                        .orElseThrow(() ->
+                                new ResourceNotFoundException(
+                                        "Payment not found"
+                                )
+                        );
 
         if (!payment.getOrder()
                 .getUser()
@@ -138,10 +250,13 @@ public class PaymentService {
                 .equals(email)) {
 
             throw new ResourceNotFoundException(
-                    "Payment not found");
+                    "Payment not found"
+            );
         }
 
-        return toResponse(payment);
+        return toResponse(
+                payment
+        );
     }
 
     private PaymentResponse toResponse(
